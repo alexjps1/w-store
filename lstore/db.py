@@ -1,16 +1,37 @@
+"""
+Module Interfaces:
+    Table for building tables
+"""
+from pathlib import Path
 from lstore.table import Table
 
 class Database():
-
-    def __init__(self):
-        self.tables = []
+    """
+    Handles high-level operations such as:
+        - Starting
+        - Shutting down
+        - Loading the database
+        - Creation and deletion of tables (create and drop functions)
+    """
+    def __init__(self) -> None:
+        # self.tables:list[Table] = []
+        # set of tables, identified by their name
+        self.tables:dict[str, Table] = {}
         pass
 
     # Not required for milestone1
-    def open(self, path):
+    def open(self, path:Path):
+        """
+        Loads the database from disk.
+        Inputs: path, the location of the database.
+        Outputs: the set of tables (self.tables stores this in memory) || None and self.tables is updated within the function.
+        """
         pass
 
-    def close(self):
+    def close(self) -> None:
+        """
+        Shuts down the database, and probably saves the database to disk.
+        """
         pass
 
     """
@@ -19,7 +40,16 @@ class Database():
     :param num_columns: int     #Number of Columns: all columns are integer
     :param key: int             #Index of table key in columns
     """
-    def create_table(self, name, num_columns, key_index):
+    def create_table(self, name:str, num_columns:int, key_index:int) -> Table:
+        """
+        Creates a new table and returns it.
+
+        Inputs:
+            - name, the name of the new table.
+            - num_columns, the number of columns in the table.
+            - key_index, TODO
+        Outputs: table, the new table.
+        """
         table = Table(name, num_columns, key_index)
         return table
 
@@ -27,12 +57,24 @@ class Database():
     """
     # Deletes the specified table
     """
-    def drop_table(self, name):
+    def drop_table(self, name:str) -> None:
+        """
+        Deletes the table with the given name.
+
+        Inputs: name, the name of the table to drop
+        Outputs: None
+        """
         pass
 
     
     """
     # Returns table with the passed name
     """
-    def get_table(self, name):
+    def get_table(self, name:str) -> Table:
+        """
+        Finds and returns the table with the given name.
+
+        Inputs: name, the name of the table to return.
+        Outputs: Table object with the given name.
+        """
         pass
