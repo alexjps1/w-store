@@ -6,6 +6,10 @@ INDIRECTION_COLUMN = 0
 RID_COLUMN = 1
 TIMESTAMP_COLUMN = 2
 SCHEMA_ENCODING_COLUMN = 3
+TAIL_INDIRECTION_COLUMN = 4
+TAIL_RID_COLUMN = 5
+TAIL_TIMESTAMP_COLUMN = 6
+TAIL_SCHEMA_ENCODING_COLUMN = 7
 
 
 class Record:
@@ -39,20 +43,31 @@ class Table:
         self.page_directory = { INDIRECTION_COLUMN : [ Page() ],                #all pages associated with base column
                                 RID_COLUMN : [ Page() ],
                                 TIMESTAMP_COLUMN : [ Page() ],
-                                SCHEMA_ENCODING_COLUMN : [ Page() ]
+                                SCHEMA_ENCODING_COLUMN : [ Page() ],
+                                TAIL_INDIRECTION_COLUMN : [ Page() ],           #Tail columns also interpreted as pages
+                                TAIL_RID_COLUMN : [ Page() ],
+                                TAIL_TIMESTAMP_COLUMN : [ Page() ],
+                                TAIL_SCHEMA_ENCODING_COLUMN : [ Page() ],
                                 }
         self.index = Index(self)
         pass
 
-    def locate_record(self, RID:int):
+    def locate_record(self, RID:int)->list[Record]:
         """
-        Given the RID, locates the physical location of the
-        corresponding record.
+        Given the RID, provides the records with that RID via using
+        indexing to find their row number.
 
         INPUTS:
             -RID:          int        #The record Id
         OUTPUT:
             The page the record is stored in, tupled with byte offset"""
+        record_idxs = self.index.locate(1, RID)
+        records = []
+        for i in record_idxs:
+            values = []
+            for col in self.num_columns:
+                values.append(col[i])                   #Assumes list implementation, we use bytearrays
+            records.append(Record(RID, ___, list))      #What goes in key section?
         pass
 
     def add_page(self, col_number):
@@ -62,6 +77,7 @@ class Table:
         INPUTS
             -col_number     int         The column that is being extended
         """
+        self.page_directory[col_number].append(Page())
         pass
 
 
