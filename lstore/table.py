@@ -1,5 +1,6 @@
 from lstore.index import Index
 from time import time
+from lstore.page import Page
 
 INDIRECTION_COLUMN = 0
 RID_COLUMN = 1
@@ -8,8 +9,14 @@ SCHEMA_ENCODING_COLUMN = 3
 
 
 class Record:
-
-    def __init__(self, rid, key, columns):
+    """
+    Instantiates a record object
+    
+    INPUTS
+        -rid            int             #Record ID
+        -key            int             #index or col_number?
+        -columns        list[ints]      #list of values in each column"""
+    def __init__(self, rid:int, key:int, columns:list[int]):
         self.rid = rid
         self.key = key
         self.columns = columns
@@ -25,11 +32,15 @@ class Table:
     OUTPUT:
         -table object
     """
-    def __init__(self, name, num_columns, key):
+    def __init__(self, name:str, num_columns:int, key:int):
         self.name = name
         self.key = key
         self.num_columns = num_columns
-        self.page_directory = {}
+        self.page_directory = { INDIRECTION_COLUMN : [ Page() ],                #all pages associated with base column
+                                RID_COLUMN : [ Page() ],
+                                TIMESTAMP_COLUMN : [ Page() ],
+                                SCHEMA_ENCODING_COLUMN : [ Page() ]
+                                }
         self.index = Index(self)
         pass
 
