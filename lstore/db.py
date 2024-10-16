@@ -4,6 +4,9 @@ Module Interfaces:
 """
 from pathlib import Path
 from lstore.table import Table
+# import config
+# from lstore.config import Config
+# config = Config()
 
 class Database():
     """
@@ -14,20 +17,20 @@ class Database():
         - Creation and deletion of tables (create and drop functions)
     """
     def __init__(self) -> None:
-        # self.tables:list[Table] = []
         # set of tables, identified by their name
-        self.tables:dict[str, Table] = {}
-        pass
+        self.tables:dict[str, Table] = {}   # this assumes no 2 tables have the same name
 
     # Not required for milestone1
-    def open(self, path:Path):
+    def open(self, path:str):
         """
         Loads the database from disk.
         Inputs: path, the location of the database.
         Outputs: the set of tables (self.tables stores this in memory) || None and self.tables is updated within the function.
         """
+        python_path = Path(path)
         pass
 
+    # Not required for milestone1 according to available tester code
     def close(self) -> None:
         """
         Shuts down the database, and probably saves the database to disk.
@@ -51,6 +54,7 @@ class Database():
         Outputs: table, the new table.
         """
         table = Table(name, num_columns, key_index)
+        self.tables[name] = table
         return table
 
     
@@ -64,17 +68,21 @@ class Database():
         Inputs: name, the name of the table to drop
         Outputs: None
         """
-        pass
+        if name in self.tables.keys():
+            del self.tables[name]
 
     
     """
     # Returns table with the passed name
     """
-    def get_table(self, name:str) -> Table:
+    def get_table(self, name:str) -> Table|bool:
         """
         Finds and returns the table with the given name.
 
         Inputs: name, the name of the table to return.
-        Outputs: Table object with the given name.
+        Outputs: Table object with the given name OR False if table could not be found
         """
-        pass
+        if name in self.tables.keys():
+            return self.tables[name]
+        else:
+            return False
