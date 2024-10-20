@@ -1,26 +1,19 @@
 from lstore.index import Index
 from time import time
 from lstore.page import Page
-
-INDIRECTION_COLUMN = 0
-RID_COLUMN = 1
-TIMESTAMP_COLUMN = 2
-SCHEMA_ENCODING_COLUMN = 3
-TAIL_INDIRECTION_COLUMN = 4
-TAIL_RID_COLUMN = 5
-TAIL_TIMESTAMP_COLUMN = 6
-TAIL_SCHEMA_ENCODING_COLUMN = 7
+from typing import List
+from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, MAX_COLUMNS
 
 
 class Record:
     """
     Instantiates a record object
-    
+
     INPUTS
         -rid            int             #Record ID
         -key            int             #index or col_number?
         -columns        list[ints]      #list of values in each column"""
-    def __init__(self, rid:int, key:int, columns:list[int]):
+    def __init__(self, rid: int, key: int, columns: List[int]):
         self.rid = rid
         self.key = key
         self.columns = columns
@@ -40,19 +33,26 @@ class Table:
         self.name = name
         self.key = key
         self.num_columns = num_columns
-        self.page_directory = { INDIRECTION_COLUMN : [ Page() ],                #all pages associated with base column
+        assert self.num_columns <= MAX_COLUMNS
+        # add metadata columns
+        self.page_directory = { 
                                 RID_COLUMN : [ Page() ],
-                                TIMESTAMP_COLUMN : [ Page() ],
+                                INDIRECTION_COLUMN : [ Page() ],                #all pages associated with base column
                                 SCHEMA_ENCODING_COLUMN : [ Page() ],
-                                TAIL_INDIRECTION_COLUMN : [ Page() ],           #Tail columns also interpreted as pages
-                                TAIL_RID_COLUMN : [ Page() ],
-                                TAIL_TIMESTAMP_COLUMN : [ Page() ],
-                                TAIL_SCHEMA_ENCODING_COLUMN : [ Page() ],
+                                TIMESTAMP_COLUMN : [ Page() ],
                                 }
+        # add data columns
+        for i in range(num_columns):
+            self.page_directory[4 + i] = [ Page() ]
+
         self.index = Index(self)
         pass
 
-    def locate_record(self, RID:int)->list[Record]:
+    def insert_record_into_pages(self, schema, *columns):
+        pass
+
+    def locate_record(self, RID: int) -> List[Record]:
+
         """
         Given the RID, provides the records with that RID via using
         indexing to find their row number.
@@ -60,7 +60,8 @@ class Table:
         INPUTS:
             -RID:          int        #The record Id
         OUTPUT:
-            The page the record is stored in, tupled with byte offset"""
+            The page the record is stored in, tupled with byte offset
+        """
         record_idxs = self.index.locate(1, RID)
         records = []
         for i in record_idxs:
@@ -68,7 +69,9 @@ class Table:
             for col in self.num_columns:
                 values.append(col[i])                   #Assumes list implementation, we use bytearrays
             records.append(Record(RID, ___, list))      #What goes in key section?
-        pass
+
+
+        return records
 
     def add_page(self, col_number):
         """
@@ -85,4 +88,3 @@ class Table:
     def __merge(self):
         print("merge is happening")
         pass
- 
