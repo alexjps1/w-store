@@ -2,6 +2,7 @@
 Module Interfaces:
     Config for page size
 """
+# import config
 from lstore.config import Config
 config = Config()
 
@@ -25,7 +26,7 @@ class Page:
         Inputs: None for fixed size records
         Outputs: True if the page has enough space for the new record, otherwise False
         """
-        return config.FIXED_PAGE_DATA_SIZE * self.num_records <= config.PAGE_SIZE
+        return config.FIXED_PARTIAL_RECORD_SIZE * self.num_records <= config.PAGE_SIZE
 
     def write(self, value:bytearray) -> None:
         """
@@ -36,6 +37,6 @@ class Page:
         # we have +1 records in this column
         self.num_records += 1
         # this is the location of the start of this page entry
-        offset = config.FIXED_PAGE_DATA_SIZE * self.num_records
+        offset = config.FIXED_PARTIAL_RECORD_SIZE * self.num_records
         # set the data at the calculated offset
-        self.data[offset:offset + config.FIXED_PAGE_DATA_SIZE] = value
+        self.data[offset:offset + config.FIXED_PARTIAL_RECORD_SIZE] = value
