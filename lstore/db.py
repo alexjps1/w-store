@@ -4,9 +4,6 @@ Module Interfaces:
 """
 from pathlib import Path
 from lstore.table import Table
-# import config
-# from lstore.config import Config
-# config = Config()
 
 class Database():
     """

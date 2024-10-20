@@ -2,11 +2,7 @@ from lstore.index import Index
 from time import time
 from lstore.page import Page
 from typing import List
-
-INDIRECTION_COLUMN = 0
-RID_COLUMN = 1
-TIMESTAMP_COLUMN = 2
-SCHEMA_ENCODING_COLUMN = 3
+from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, MAX_COLUMNS
 
 
 class Record:
@@ -37,11 +33,18 @@ class Table:
         self.name = name
         self.key = key
         self.num_columns = num_columns
-        self.page_directory = { INDIRECTION_COLUMN : [ Page() ],                #all pages associated with base column
+        assert self.num_columns <= MAX_COLUMNS
+        # add metadata columns
+        self.page_directory = { 
                                 RID_COLUMN : [ Page() ],
-                                TIMESTAMP_COLUMN : [ Page() ],
+                                INDIRECTION_COLUMN : [ Page() ],                #all pages associated with base column
                                 SCHEMA_ENCODING_COLUMN : [ Page() ],
+                                TIMESTAMP_COLUMN : [ Page() ],
                                 }
+        # add data columns
+        for i in range(num_columns):
+            self.page_directory[4 + i] = [ Page() ]
+
         self.index = Index(self)
         pass
 
