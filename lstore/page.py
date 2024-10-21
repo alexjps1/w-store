@@ -33,9 +33,9 @@ class Page:
         Inputs: value that will be written to the page
         Outputs: None
         """
-        # we have +1 records in this column
-        self.num_records += 1
         # this is the location of the start of this page entry
         offset = FIXED_PARTIAL_RECORD_SIZE * self.num_records
         # set the data at the calculated offset
         self.data[offset:offset + FIXED_PARTIAL_RECORD_SIZE] = value
+        # we have +1 records in this column
+        self.num_records += 1
