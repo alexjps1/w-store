@@ -1,5 +1,6 @@
 from lstore.table import Table, Record
 from lstore.index import Index
+from typing import Literal, Any
 
 
 class Query:
@@ -38,12 +39,14 @@ class Query:
     # Read matching record with specified search key
     # :param search_key: the value you want to search based on
     # :param search_key_index: the column index you want to search based on
-    # :param projected_columns_index: what columns to return. array of 1 or 0 values.
+    # :param projected_columns_index: what columns to return. array of 1 or 0 values (i.e. [0, 0, 1, 1]).
     # Returns a list of Record objects upon success
     # Returns False if record locked by TPL
     # Assume that select will never be called on a key that doesn't exist
     """
-    def select(self, search_key, search_key_index, projected_columns_index):
+    def select(self, search_key:Any, search_key_index:int, projected_columns_index:list[bool]) -> list[Record]|Literal[False]:
+        # find the Record ID
+        # build Record objects
         pass
 
     

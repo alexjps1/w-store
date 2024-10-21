@@ -2,7 +2,7 @@ from lstore.index import Index
 from time import time
 from lstore.page import Page
 from typing import List
-from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, MAX_COLUMNS
+from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, MAX_COLUMNS, NUM_METADATA_COLUMNS
 
 
 class Record:
@@ -43,7 +43,7 @@ class Table:
                                 }
         # add data columns
         for i in range(num_columns):
-            self.page_directory[4 + i] = [ Page() ]
+            self.page_directory[NUM_METADATA_COLUMNS + i] = [ Page() ]
 
         self.index = Index(self)
         pass
@@ -51,27 +51,25 @@ class Table:
     def insert_record_into_pages(self, schema, *columns):
         pass
 
-    def locate_record(self, RID: int) -> List[Record]:
-
+    def locate_record(self, RID: int, key:int, column_mask:list[bool]) -> Record:
         """
-        Given the RID, provides the records with that RID via using
-        indexing to find their row number.
+        Given the RID, provides the record with that RID via indexing.
 
         INPUTS:
-            -RID:          int        #The record Id
+            RID: int, the record id
+            key: int, this is the key needed by the Record class
+            column_mask: list[bool], which columns the record should contain
         OUTPUT:
-            The page the record is stored in, tupled with byte offset
+            Record object
         """
-        record_idxs = self.index.locate(1, RID)
-        records = []
-        for i in record_idxs:
-            values = []
-            for col in self.num_columns:
-                values.append(col[i])                   #Assumes list implementation, we use bytearrays
-            records.append(Record(RID, ___, list))      #What goes in key section?
+        # for given column_mask:
+        columns = []
+        for i, mask in enumerate(column_mask):
+            if mask:
+                columns.append(self.index.get(RID, i)) #TODO replace with actual function, needs to accept the RID and the column number and return the partial record contained at the correct page and offset
 
-
-        return records
+        # build the record object
+        return Record(RID, key, columns)
 
     def add_page(self, col_number):
         """
@@ -82,8 +80,6 @@ class Table:
         """
         self.page_directory[col_number].append(Page())
         pass
-
-
 
     def __merge(self):
         print("merge is happening")
