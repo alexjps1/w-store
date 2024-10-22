@@ -28,3 +28,15 @@ INDIRECTION_COLUMN = 1
 SCHEMA_ENCODING_COLUMN = 2
 TIMESTAMP_COLUMN = 3
 NUM_METADATA_COLUMNS = 4  # just the number of metadata columns
+
+def schema_AND(list_one:list[bool], list_two:list[bool]) -> list[bool]:
+    assert len(list_one) == len(list_two)
+    # calculates logical AND for each pair of elements in list_one and list_two
+    return [a and b for a, b in zip(list_one, list_two)]
+
+def schema_SUBTRACT(column_mask:list[bool], schema:list[bool]) -> list[bool]:
+    assert len(column_mask) == len(schema)
+    # subtracts schema from column_mask, True - False = True, True - True = False, False - True = False, False - False = False
+    return [a and not b for a, b in zip(column_mask, schema)]
+        
+
