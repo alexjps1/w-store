@@ -27,15 +27,24 @@ class Page:
         """
         return FIXED_PARTIAL_RECORD_SIZE * self.num_records <= PAGE_SIZE
 
-    def write(self, value:bytearray) -> None:
+    def write_direct(self, value:bytearray) -> None:
         """
         Writes a new bytearray to the page, and increments num_records by one.
         Inputs: value that will be written to the page
         Outputs: None
         """
-        # we have +1 records in this column
-        self.num_records += 1
         # this is the location of the start of this page entry
         offset = FIXED_PARTIAL_RECORD_SIZE * self.num_records
         # set the data at the calculated offset
         self.data[offset:offset + FIXED_PARTIAL_RECORD_SIZE] = value
+        # we have +1 records in this column
+        self.num_records += 1
+
+    def retrieve_direct(self, offset:int) -> bytearray:
+        """
+        Retrieves the partial record located at the given offset
+        Inputs: offset, the record number for this page
+        Outputs: the bytearray representing the record
+        """
+        byte_offset = offset * FIXED_PARTIAL_RECORD_SIZE
+        return self.data[byte_offset:byte_offset + FIXED_PARTIAL_RECORD_SIZE]
