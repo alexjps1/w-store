@@ -30,12 +30,12 @@ SCHEMA_ENCODING_COLUMN = 2
 TIMESTAMP_COLUMN = 3
 NUM_METADATA_COLUMNS = 4  # just the number of metadata columns
 
-def schema_AND(list_one:list[bool], list_two:list[bool]) -> list[bool]:
+def schema_AND(list_one:list[bool]|bytearray|list[int], list_two:list[bool]|bytearray|list[int]) -> list[bool]|list[int]:
     assert len(list_one) == len(list_two)
     # calculates logical AND for each pair of elements in list_one and list_two
     return [a and b for a, b in zip(list_one, list_two)]
 
-def schema_SUBTRACT(column_mask:list[bool], schema:list[bool]) -> list[bool]:
+def schema_SUBTRACT(column_mask:list[bool]|bytearray|list[int], schema:list[bool]|bytearray|list[int]) -> list[bool]|list[int]:
     assert len(column_mask) == len(schema)
     # subtracts schema from column_mask, True - False = True, True - True = False, False - True = False, False - False = False
     return [a and not b for a, b in zip(column_mask, schema)]
@@ -56,7 +56,7 @@ def bytearray_to_int(array:bytearray) -> int:
     """
     return int.from_bytes(bytes(array), 'little')
 
-def schema_to_bytearray(schema:list[bool]) -> bytearray:
+def schema_to_bytearray(schema:list[bool]|list[int]) -> bytearray:
     """
     Converts a schema encoding to a bytearray for storage
     Inputs: schema, a list of 1 or 0 values
@@ -68,7 +68,7 @@ def schema_to_bytearray(schema:list[bool]) -> bytearray:
     array[len(schema)] = SCHEMA_TERMINATION_VALUE # add a termination character
     return array
 
-def bytearray_to_schema(array:bytearray) -> list[bool]:
+def bytearray_to_schema(array:bytearray) -> list[bool]|list[int]:
     """
     Converts a bytearray to the schema encoding data, this function requires the schema be terminated by the SCHEMA_TERMINATION_VALUE
     Inputs: array, the bytearray storing the schema
