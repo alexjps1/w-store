@@ -81,7 +81,10 @@ class Query:
     def update(self, primary_key, *columns):
         # find the base record with primary_key
         # TODO return False if index fails to find rid
-        rid = self.table.index.locate(NUM_METADATA_COLUMNS, primary_key)[0]
+        try:
+            rid = self.table.index.locate(NUM_METADATA_COLUMNS, primary_key)[0]
+        except IndexError:
+            return False
         # append new tail record with *columns, and indirection to other tail record's RID and set base record's indirection to new tail's RID
         return self.table.append_tail_record(rid, columns)
 

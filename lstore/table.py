@@ -4,8 +4,7 @@ from time import time
 from lstore.page import Page
 from typing import List, Literal
 from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, MAX_COLUMNS, NUM_METADATA_COLUMNS, RID_TOMBSTONE_VALUE
-from lstore.config import schema_AND, schema_SUBTRACT, bytearray_to_int, int_to_bytearray
-from rid import rid_to_coords, coords_to_rid
+from lstore.config import schema_AND, schema_SUBTRACT, bytearray_to_int, int_to_bytearray, rid_to_coords, coords_to_rid, schema_to_bytearray, bytearray_to_schema
 
 
 class Record:
@@ -67,7 +66,7 @@ class Table:
         page = self.get_writable_page(RID_COLUMN, key="base")
         # get info for new rid
         offset = page.num_records
-        page_num = self.page_directory[RID_COLUMN]["base"].Index(page)
+        page_num = self.page_directory[RID_COLUMN]["base"].index(page)
         # create the new rid
         new_rid = coords_to_rid(False, page_num, offset)
         # write metadata, put RID in both RID_COLUMN and INDIRECTION_COLUMN
@@ -88,12 +87,12 @@ class Table:
         if old_tail_rid == RID_TOMBSTONE_VALUE:
             return False
 
-        schema_encoding = bytearray([1]*len(columns)) # NOTE this is wrong for incomplete updates
+        schema_encoding = schema_to_bytearray([1]*len(columns)) # NOTE this is wrong for incomplete updates
         # get the page to append the new tail record rid
         page = self.get_writable_page(RID_COLUMN)
         # get info for new rid
         offset = page.num_records
-        page_num = self.page_directory[RID_COLUMN]["tail"].Index(page)
+        page_num = self.page_directory[RID_COLUMN]["tail"].index(page)
         # create the new rid
         new_tail_rid = coords_to_rid(True, page_num, offset)
         # write metadata and data columns
@@ -126,7 +125,7 @@ class Table:
         if type(indirection) == int:
             indirection = int_to_bytearray(indirection)
         if type(schema) != bytearray:
-            schema = bytearray(schema)
+            schema = schema_to_bytearray(schema)
 
         timestamp = int(time()) # accurate to the second only
         # write the metadata columns
@@ -218,7 +217,7 @@ class Table:
         columns = bytearray(len(column_mask))
         working_mask = column_mask
         tail_rid = Tail_RID
-        while True in working_mask:
+        while True in working_mask and tail_rid != Base_RID:
             tail_schema = self.get_partial_record(tail_rid, SCHEMA_ENCODING_COLUMN)
             # only check columns that are the intersection of the tail record schema and the column_mask
             working_mask = schema_AND(working_mask, tail_schema)
@@ -243,7 +242,7 @@ class Table:
         columns = [col for col in columns if col is not None]
         return Record(Base_RID, key, columns)
 
-    def locate_base_record(self, RID:int, key:int, column_mask:list[bool]|bytearray) -> Record:
+    def locate_base_record(self, RID:int, key:int, column_mask:list[bool]) -> Record:
         # for given column_mask:
         columns = []
         for i, mask in enumerate(column_mask):
@@ -252,7 +251,7 @@ class Table:
         # build the record object
         return Record(RID, key, columns)
 
-    def get_partial_record(self, RID:int|bytearray, column:int) -> bytearray:
+    def get_partial_record(self, RID:int|bytearray, column:int) -> bytearray|list[int]:
         """
         Accepts the RID and the column number and returns the partial record contained at the correct page and offset.
         NOTE: should not be used directly for any data column as it will not apply the tail records to the result.
@@ -274,6 +273,9 @@ class Table:
             data = self.page_directory[column]["tail"][page_num].retrieve_direct(offset)
         else:
             data = self.page_directory[column]["base"][page_num].retrieve_direct(offset)
+
+        if column == SCHEMA_ENCODING_COLUMN:
+            data = bytearray_to_schema(data, self.num_columns)
         return data
 
     def add_page(self, col_number:int, is_tail_page:bool=False):

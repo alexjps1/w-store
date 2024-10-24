@@ -1,4 +1,3 @@
-from lstore.rid import coords_to_rid
 """
 Centralized storage for all configuration options and constants.
 Imported by other modules when they need access to a configuration option or a constant.
@@ -6,6 +5,41 @@ Imported by other modules when they need access to a configuration option or a c
 Inputs: None
 Outputs: None
 Module Interfaces: None
+"""
+"""
+RID Conversion Tool
+
+Tool to convert between RIDs and coordinates identifying the location of a record.
+"""
+
+def coords_to_rid(is_tail: bool, page_num: int, offset: int) -> int:
+    """
+    Converts the page number and offset to a RID
+    """
+    tail_bit = 0b1 if is_tail else 0b0
+    tail_component = tail_bit << (PAGE_NUMBER_BITS + OFFSET_BITS)
+
+    page_mask = (page_num << OFFSET_BITS) - 1
+    page_component = (page_mask & page_num) << OFFSET_BITS
+
+    offset_mask = (offset << OFFSET_BITS) - 1
+    offset_component = offset_mask & offset
+
+    return tail_component | page_component | offset_component
+
+
+def rid_to_coords(rid: int) -> tuple[bool, int, int]:
+    """
+    Converts the RID to page number and offset
+    """
+    tail_bit = (rid >> (PAGE_NUMBER_BITS + OFFSET_BITS)) & 0b1
+    page_num = (rid >> OFFSET_BITS) & ((1 << PAGE_NUMBER_BITS) - 1)
+    offset = rid & ((1 << OFFSET_BITS) - 1)
+
+    return bool(tail_bit), page_num, offset
+
+"""
+Constants
 """
 # PAGE_SIZE is the byte capacity for each page
 PAGE_SIZE:int = 4096
@@ -60,27 +94,21 @@ def bytearray_to_int(array:bytearray) -> int:
 
 def schema_to_bytearray(schema:list[bool]|list[int]) -> bytearray:
     """
-    Converts a schema encoding to a bytearray for storage
+    Converts a schema encoding to a bytearray for storage, by first converting the schema to an int, and then a bytearray
     Inputs: schema, a list of 1 or 0 values
     Outputs: a bytearray of length equal to FIXED_PARTIAL_RECORD_SIZE containing the schema
     """
-    array = bytearray(FIXED_PARTIAL_RECORD_SIZE)
-    for i, value in enumerate(schema):
-        array[i] = value
-    array[len(schema)] = SCHEMA_TERMINATION_VALUE # add a termination character
-    return array
+    num = int(''.join(str(x) for x in schema), 2)
+    return int_to_bytearray(num)
 
-def bytearray_to_schema(array:bytearray) -> list[bool]|list[int]:
+def bytearray_to_schema(array:bytearray, length:int) -> list[bool]|list[int]:
     """
-    Converts a bytearray to the schema encoding data, this function requires the schema be terminated by the SCHEMA_TERMINATION_VALUE
+    Converts a bytearray to the schema encoding data, by converting the bytearray to an int and then to the schema
+
     Inputs: array, the bytearray storing the schema
     Outputs: the schema as a list of 1 or 0 values
     """
-    l = [0]*MAX_COLUMNS
-    trim_index = MAX_COLUMNS
-    for i, value in enumerate(array):
-        l[i] = value # value is already an int
-        if l[i] == SCHEMA_TERMINATION_VALUE:
-            trim_index = i
-            break
-    return l[:trim_index-1]
+    num = bytearray_to_int(array)
+    return [int(x) for x in list('{0:0b}'.format(num).zfill(length))]
+
+

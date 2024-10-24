@@ -1,13 +1,13 @@
 from lstore.config import RID_COLUMN, NUM_METADATA_COLUMNS
 from lstore.config import bytearray_to_int
-from lstore.table import Table
+# from lstore.table import Table
 from typing import Literal
 
 class DumbIndex:
     """
     Dumb index class to allow testing, it is really inefficient
     """
-    def __init__(self, table:Table) -> None:
+    def __init__(self, table:"Table") -> None:
         self.table = table
 
     def get_rid(self, page_num:int, offset:int) -> int:
