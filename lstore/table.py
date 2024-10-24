@@ -200,6 +200,7 @@ class Table:
     def get_partial_record(self, RID:int|bytearray, column:int) -> bytearray:
         """
         Accepts the RID and the column number and returns the partial record contained at the correct page and offset.
+        NOTE: should not be used directly for any data column as it will not apply the tail records to the result.
         
         Inputs:
             RID, the record id

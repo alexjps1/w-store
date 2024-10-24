@@ -92,8 +92,8 @@ class Query:
     # Returns the summation of the given range upon success
     # Returns False if no record exists in the given range
     """
-    def sum(self, start_range, end_range, aggregate_column_index):
-        pass
+    def sum(self, start_range:int, end_range:int, aggregate_column_index:int) -> int|Literal[False]:
+        return self.sum_version(start_range, end_range, aggregate_column_index, 0)
 
     
     """
@@ -105,8 +105,21 @@ class Query:
     # Returns the summation of the given range upon success
     # Returns False if no record exists in the given range
     """
-    def sum_version(self, start_range, end_range, aggregate_column_index, relative_version):
-        pass
+    def sum_version(self, start_range:int, end_range:int, aggregate_column_index:int, relative_version:int) -> int|Literal[False]:
+        # ask index to find the relevant RIDs
+        # TODO return False if no records where found
+        rid_set = self.table.index.locate_range(start_range, end_range, aggregate_column_index)
+        # get the attribute values and return the sum
+        record_list = [None]*len(rid_set) # preallocate an empty list
+        # build a all 0 column mask except for the aggregate column
+        column_mask = [0]*self.table.num_columns
+        column_mask[aggregate_column_index] = 1
+        sum_value = 0
+        # sum records after applying tails
+        for rid in rid_set:
+            record = self.table.locate_record(rid, 0, column_mask, relative_version)
+            sum_value += record.columns[0]
+        return sum_value
 
     
     """
