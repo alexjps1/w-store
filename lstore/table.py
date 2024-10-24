@@ -52,8 +52,28 @@ class Table:
         self.index = DumbIndex(self)
         pass
 
-    def insert_record_into_pages(self, schema, *columns):
-        pass
+    def insert_record_into_pages(self, columns:list[int]) -> bool:
+        """
+        Inserts a new base record into the database. INDIRECTION_COLUMN defaults to the new rid of the base page.
+
+        Inputs:
+            - columns, the data to write in the new record, must be the same length as the table's data columns
+        Outputs:
+            - returns True on a successful insert, False otherwise
+        """
+        # TODO return False on a failed insert
+        # make new Base RID
+        # get writable base page
+        page = self.get_writable_page(RID_COLUMN, key="base")
+        # get info for new rid
+        offset = page.num_records
+        page_num = self.page_directory[RID_COLUMN]["base"].Index(page)
+        # create the new rid
+        new_rid = coords_to_rid(False, page_num, offset)
+        # write metadata, put RID in both RID_COLUMN and INDIRECTION_COLUMN
+        # write metadata and data columns
+        success_state = self.write_new_record(new_rid, new_rid, [0]*self.num_columns, columns, page, "base")
+        return success_state
 
     def append_tail_record(self, base_RID:int, columns:list[int]) -> bool:
         """
@@ -62,14 +82,13 @@ class Table:
         """
         # append new tail record with *columns, and indirection to other tail record's RID
         # find the most recent tail record from base record's indirection
-        # TODO check tail != base, or that Base Records default to their RIDs in the INDIRECTION_COLUMN instead of a null value
+        # check tail != base, or that Base Records default to their RIDs in the INDIRECTION_COLUMN instead of a null value
         old_tail_rid = self.get_partial_record(base_RID, INDIRECTION_COLUMN)
         # check if this record is deleted
         if old_tail_rid == RID_TOMBSTONE_VALUE:
             return False
 
         schema_encoding = bytearray([1]*len(columns)) # NOTE this is wrong for incomplete updates
-        timestamp = int(time()) # accurate to the second only
         # get the page to append the new tail record rid
         page = self.get_writable_page(RID_COLUMN)
         # get info for new rid
@@ -77,27 +96,54 @@ class Table:
         page_num = self.page_directory[RID_COLUMN]["tail"].Index(page)
         # create the new rid
         new_tail_rid = coords_to_rid(True, page_num, offset)
-
-        # write the metadata columns
-        write_cols:list[int] = [INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN]
-        write_vals:list[bytearray] = [old_tail_rid, schema_encoding, int_to_bytearray(timestamp)]
-        # write Tail RID
-        page.write_direct(int_to_bytearray(new_tail_rid)) 
-        # the rid page number is needed for RID generation, so it is redundant to include writing the rid in the for loop
-        for i, col in enumerate(write_cols):
-            page = self.get_writable_page(col)
-            page.write_direct(write_vals[i])
-        
-        # write data columns
-        for i, col in enumerate(columns):
-            # write data to page
-            page = self.get_writable_page(i + NUM_METADATA_COLUMNS)
-            page.write_direct(int_to_bytearray(col))
+        # write metadata and data columns
+        success_state = self.write_new_record(new_tail_rid, old_tail_rid, schema_encoding, columns, page, "tail")
 
         # set base record's indirection to new tail's RID
         _, page_num, offset = rid_to_coords(base_RID)
         base_page = self.page_directory[INDIRECTION_COLUMN]["base"][page_num]
         base_page.overwrite_direct(int_to_bytearray(new_tail_rid), offset)
+
+        return success_state
+
+    def write_new_record(self, RID:int|bytearray, indirection:int|bytearray, schema:list[bool]|list[int]|bytearray, columns:list[int], rid_page:Page, record_type:Literal["tail"]|Literal["base"]) -> bool:
+        """
+        Helper function for writing a new record
+
+        Inputs:
+            - RID, the new record's RID
+            - indirection, what should be put in the new record's INDIRECTION_COLUMN
+            - schema, the schema encoding for the new record, for base pages this is all 0's
+            - columns, the data columns to insert
+            - rid_page, a reference to the RID page for the new record, this is needed to build the RID, so passing it into this function saves looking it up again
+            - record_type, ether "tail" for tail records or "base" for base records
+        Outputs:
+            - True on a successful write, False otherwise
+        """
+        # convert input rids to bytearrays
+        if type(RID) == int:
+            RID = int_to_bytearray(RID)
+        if type(indirection) == int:
+            indirection = int_to_bytearray(indirection)
+        if type(schema) != bytearray:
+            schema = bytearray(schema)
+
+        timestamp = int(time()) # accurate to the second only
+        # write the metadata columns
+        write_cols:list[int] = [INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN]
+        write_vals:list[bytearray] = [indirection, schema, int_to_bytearray(timestamp)]
+        # write RID
+        rid_page.write_direct(RID) 
+        # the rid page number is needed for RID generation, so it is redundant to include writing the rid in the for loop
+        for i, col in enumerate(write_cols):
+            page = self.get_writable_page(col, record_type)
+            page.write_direct(write_vals[i])
+        
+        # write data columns
+        for i, col in enumerate(columns):
+            # write data to page
+            page = self.get_writable_page(i + NUM_METADATA_COLUMNS, record_type)
+            page.write_direct(int_to_bytearray(col))
 
         # update was successful
         return True
