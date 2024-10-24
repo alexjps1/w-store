@@ -1,9 +1,10 @@
-from lstore.index import Index
+# from lstore.index import Index
+from lstore.placeholder_index import DumbIndex
 from time import time
 from lstore.page import Page
 from typing import List, Literal
-from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, MAX_COLUMNS, NUM_METADATA_COLUMNS
-from lstore.config import schema_AND, schema_SUBTRACT, bytearray_to_int, bytearray_to_schema, int_to_bytearray, schema_to_bytearray
+from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, MAX_COLUMNS, NUM_METADATA_COLUMNS, RID_TOMBSTONE_VALUE
+from lstore.config import schema_AND, schema_SUBTRACT, bytearray_to_int, int_to_bytearray
 from rid import rid_to_coords, coords_to_rid
 
 
@@ -47,7 +48,8 @@ class Table:
         for i in range(num_columns):
             self.page_directory[NUM_METADATA_COLUMNS + i] = {"base":[ Page() ], "tail":[]}
 
-        self.index = Index(self)
+        # self.index = Index(self)
+        self.index = DumbIndex(self)
         pass
 
     def insert_record_into_pages(self, schema, *columns):
@@ -62,6 +64,10 @@ class Table:
         # find the most recent tail record from base record's indirection
         # TODO check tail != base, or that Base Records default to their RIDs in the INDIRECTION_COLUMN instead of a null value
         old_tail_rid = self.get_partial_record(base_RID, INDIRECTION_COLUMN)
+        # check if this record is deleted
+        if old_tail_rid == RID_TOMBSTONE_VALUE:
+            return False
+
         schema_encoding = bytearray([1]*len(columns)) # NOTE this is wrong for incomplete updates
         timestamp = int(time()) # accurate to the second only
         # get the page to append the new tail record rid
@@ -124,7 +130,7 @@ class Table:
         # return the Page 
         return page
 
-    def locate_record(self, RID: int, key:int, column_mask:list[bool]|list[int]|bytearray, version:int=0) -> Record:
+    def locate_record(self, RID: int, key:int, column_mask:list[bool]|list[int]|bytearray, version:int=0) -> Record|Literal[False]:
         """
         Given the RID, provides the record with that RID via indexing.
 
@@ -138,6 +144,9 @@ class Table:
         """
         # get the base record's indirection column (the first tail record's RID)
         tail_RID = self.get_partial_record(RID, INDIRECTION_COLUMN)
+        # check if this record is deleted
+        if tail_RID == RID_TOMBSTONE_VALUE:
+            return False
         if version == 0:
             # we are interested in the current version of the record
             pass # no extra action needed
@@ -212,7 +221,7 @@ class Table:
             rid = bytearray_to_int(RID)
         else:
             rid = RID
-        # get RID and offset
+        # get page number and offset
         tail, page_num, offset = rid_to_coords(rid)
         # get raw data
         if tail:
@@ -233,6 +242,14 @@ class Table:
         else:
             page_type = "base"
         self.page_directory[col_number][page_type].append(Page())
+
+    def delete_record(self, base_RID:int) -> bool:
+        # set the INDIRECTION_COLUMN of the base record to a tombstone value
+        # get page number and offset
+        tail, page_num, offset = rid_to_coords(base_RID)
+        page = self.page_directory[INDIRECTION_COLUMN]["base"][page_num]
+        page.overwrite_direct(int_to_bytearray(RID_TOMBSTONE_VALUE), offset)
+        pass
 
     def __merge(self):
         print("merge is happening")

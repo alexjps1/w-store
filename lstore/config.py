@@ -1,4 +1,4 @@
-
+from lstore.rid import coords_to_rid
 """
 Centralized storage for all configuration options and constants.
 Imported by other modules when they need access to a configuration option or a constant.
@@ -23,6 +23,8 @@ TAIL_BIT = 1
 PAGE_NUMBER_BITS = 21
 OFFSET_BITS = 10
 RID_BIT_SIZE = TAIL_BIT + PAGE_NUMBER_BITS + OFFSET_BITS
+
+RID_TOMBSTONE_VALUE = coords_to_rid(False, 2**21-1, 2**10-1)
 
 RID_COLUMN = 0
 INDIRECTION_COLUMN = 1

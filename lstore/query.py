@@ -1,7 +1,7 @@
 from lstore.table import Table, Record
-from lstore.index import Index
-from typing import Literal, Any
-from lstore.config import NUM_METADATA_COLUMNS, INDIRECTION_COLUMN, RID_COLUMN, SCHEMA_ENCODING_COLUMN
+# from lstore.index import Index
+from typing import Literal
+from lstore.config import NUM_METADATA_COLUMNS
 
 
 class Query:
@@ -22,8 +22,11 @@ class Query:
     # Returns True upon successful deletion
     # Return False if record doesn't exist or is locked due to 2PL
     """
-    def delete(self, primary_key):
-        pass
+    def delete(self, primary_key:int) -> bool:
+        # find the record
+        rid = self.table.index.locate(0, primary_key)
+        # delete record and return success state
+        return self.table.delete_record(rid)
     
     
     """
@@ -45,7 +48,7 @@ class Query:
     # Returns False if record locked by TPL
     # Assume that select will never be called on a key that doesn't exist
     """
-    def select(self, search_key:Any, search_key_index:int, projected_columns_index:list[bool]) -> list[Record]|Literal[False]:
+    def select(self, search_key:int, search_key_index:int, projected_columns_index:list[bool]) -> list[Record]|Literal[False]:
         # find the Record IDs
         rids = self.table.index.locate(search_key_index, search_key)
         # get relevant columns for the records
