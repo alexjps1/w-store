@@ -6,6 +6,10 @@ from typing import List, Literal
 from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, MAX_COLUMNS, NUM_METADATA_COLUMNS, RID_TOMBSTONE_VALUE
 from lstore.config import schema_AND, schema_SUBTRACT, bytearray_to_int, int_to_bytearray, rid_to_coords, coords_to_rid, schema_to_bytearray, bytearray_to_schema
 
+def debug_print(debug_rid, table):
+    x1, x2, x3 = rid_to_coords(debug_rid)
+    debug_cols = [table.get_partial_record(debug_rid, debug_index) for debug_index in range(len(table.page_directory.keys()))]
+    print(debug_cols)
 
 class Record:
     """
@@ -83,6 +87,10 @@ class Table:
         # find the most recent tail record from base record's indirection
         # check tail != base, or that Base Records default to their RIDs in the INDIRECTION_COLUMN instead of a null value
         old_tail_rid = self.get_partial_record(base_RID, INDIRECTION_COLUMN)
+        # print("base")
+        # debug_print(base_RID, self)
+        # print("old tail")
+        # debug_print(old_tail_rid, self)
         # check if this record is deleted
         if old_tail_rid == RID_TOMBSTONE_VALUE:
             return False
@@ -102,6 +110,8 @@ class Table:
         _, page_num, offset = rid_to_coords(base_RID)
         base_page = self.page_directory[INDIRECTION_COLUMN]["base"][page_num]
         base_page.overwrite_direct(int_to_bytearray(new_tail_rid), offset)
+        # print("new tail")
+        # debug_print(new_tail_rid, self)
         return success_state
 
     def write_new_record(self, RID:int, indirection:int, schema:list[int], columns:list[int], rid_page:Page, record_type:Literal["tail"]|Literal["base"]) -> bool:
@@ -200,7 +210,13 @@ class Table:
                 # locate the correct version
                 for _ in range(version, 0):
                     # get the next tail record
+                    # debug_print(tail_RID, self)
+                    tmp_tail_rid = tail_RID
                     tail_RID = self.get_partial_record(tail_RID, INDIRECTION_COLUMN)
+                    if tail_RID == RID:
+                        # if history stack is smaller then disiered result, give the base rid
+                        record = Record(RID, key, [self.get_partial_record(RID, i + NUM_METADATA_COLUMNS) for i in range(len(column_mask))])
+                        return record
                 # tail_RID is now the RID of the -version tail record
             else: # version > 0:
                 #NOTE this will be treated the same as version == 0
@@ -227,10 +243,14 @@ class Table:
         # print("all masks at agg {} work {} col {}".format(aggregate_mask, working_mask, column_mask))
         tail_rid = Tail_RID
         # NOTE cumulative and non-cumulative implementations are functionally similar in this code base since records must be lined up along pages, non-cumulative tail records will write null values to pages not in the update range, but the schema_encoding should prevent those partial records from being read.
+
+        # print("base record")
+        # debug_print(Base_RID)
         
         while 1 in aggregate_mask:
             is_tail, _, _ = rid_to_coords(tail_rid)
-            # print("appling tail", tail_rid)
+            # print("applying tail", tail_rid)
+            # debug_print(tail_rid)
             if is_tail:
                 tail_schema = self.get_partial_record(tail_rid, SCHEMA_ENCODING_COLUMN)
                 # only check columns that are the intersection of the tail record schema and the column_mask
