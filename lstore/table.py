@@ -87,7 +87,7 @@ class Table:
         if old_tail_rid == RID_TOMBSTONE_VALUE:
             return False
 
-        schema_encoding = schema_to_bytearray([1]*len(columns)) # NOTE this is wrong for incomplete updates
+        schema_encoding = [1 if x is not None else 0 for x in columns]
         # get the page to append the new tail record rid
         page = self.get_writable_page(RID_COLUMN)
         # get info for new rid
@@ -102,10 +102,9 @@ class Table:
         _, page_num, offset = rid_to_coords(base_RID)
         base_page = self.page_directory[INDIRECTION_COLUMN]["base"][page_num]
         base_page.overwrite_direct(int_to_bytearray(new_tail_rid), offset)
-
         return success_state
 
-    def write_new_record(self, RID:int|bytearray, indirection:int|bytearray, schema:list[bool]|list[int]|bytearray, columns:list[int], rid_page:Page, record_type:Literal["tail"]|Literal["base"]) -> bool:
+    def write_new_record(self, RID:int, indirection:int, schema:list[int], columns:list[int], rid_page:Page, record_type:Literal["tail"]|Literal["base"]) -> bool:
         """
         Helper function for writing a new record
 
@@ -119,20 +118,14 @@ class Table:
         Outputs:
             - True on a successful write, False otherwise
         """
-        # convert input rids to bytearrays
-        if type(RID) == int:
-            RID = int_to_bytearray(RID)
-        if type(indirection) == int:
-            indirection = int_to_bytearray(indirection)
-        if type(schema) != bytearray:
-            schema = schema_to_bytearray(schema)
-
+        tail, _, _ = rid_to_coords(RID)
+        # print("----Writing new record---- istail{}, rid{}, ind{}, schema{}, columns{}".format(int(tail), RID, indirection, schema, columns))
         timestamp = int(time()) # accurate to the second only
         # write the metadata columns
         write_cols:list[int] = [INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN]
-        write_vals:list[bytearray] = [indirection, schema, int_to_bytearray(timestamp)]
+        write_vals:list[bytearray] = [int_to_bytearray(indirection), schema_to_bytearray(schema), int_to_bytearray(timestamp)]
         # write RID
-        rid_page.write_direct(RID) 
+        rid_page.write_direct(int_to_bytearray(RID)) 
         # the rid page number is needed for RID generation, so it is redundant to include writing the rid in the for loop
         for i, col in enumerate(write_cols):
             page = self.get_writable_page(col, record_type)
@@ -140,10 +133,13 @@ class Table:
         
         # write data columns
         for i, col in enumerate(columns):
-            # write data to page
             page = self.get_writable_page(i + NUM_METADATA_COLUMNS, record_type)
-            page.write_direct(int_to_bytearray(col))
-
+            if schema[i] or record_type == "base":
+                # write data to page
+                page.write_direct(int_to_bytearray(col))
+            else:
+                # write a None value, it should be skipped by the schema encoding when read
+                page.write_direct(int_to_bytearray(0))
         # update was successful
         return True
 
@@ -159,23 +155,25 @@ class Table:
             page = self.page_directory[column][key][-1]
             if not page.has_capacity():
                 # add a new page
+                # print("\n######### {} Page Full #########\n".format(key))
                 add_new = True
             else:
                 return page
         else:
             # add the first new page
+            # print("add first set of {} pages".format(key))
             add_new = True
 
         if add_new:
             # add new page for all columns
             for col in self.page_directory.keys():
-                self.add_page(col, is_tail_page=(key=="tail"))
-        
+                self.add_page(col, key)
+
         page = self.page_directory[column][key][-1]
         # return the Page 
         return page
 
-    def locate_record(self, RID: int, key:int, column_mask:list[bool]|list[int]|bytearray, version:int=0) -> Record|Literal[False]:
+    def locate_record(self, RID: int, key:int, column_mask:list[int], version:int=0) -> Record|Literal[False]:
         """
         Given the RID, provides the record with that RID via indexing.
 
@@ -192,54 +190,77 @@ class Table:
         # check if this record is deleted
         if tail_RID == RID_TOMBSTONE_VALUE:
             return False
-        if version == 0:
-            # we are interested in the current version of the record
-            pass # no extra action needed
-        elif version < 0:
-            # we are interested in a past version of the record
-            # locate the correct version
-            for _ in range(version, 0): #TODO check this does not miss one
-                # get the next tail record
-                tail_RID = self.get_partial_record(tail_RID, INDIRECTION_COLUMN)
-            # tail_RID is now the RID of the -version tail record
-        else: # version > 0:
-            #NOTE this will be treated the same as version == 0
-            pass
-        # apply the tail records to base record and return columns as directed
-        return self.apply_tails_to_base(tail_RID, RID, key, column_mask)
+        tail, _, _ = rid_to_coords(tail_RID)
+        if tail:
+            if version == 0:
+                # we are interested in the current version of the record
+                pass # no extra action needed
+            elif version < 0:
+                # we are interested in a past version of the record
+                # locate the correct version
+                for _ in range(version, 0):
+                    # get the next tail record
+                    tail_RID = self.get_partial_record(tail_RID, INDIRECTION_COLUMN)
+                # tail_RID is now the RID of the -version tail record
+            else: # version > 0:
+                #NOTE this will be treated the same as version == 0
+                pass
+            # apply the tail records to base record and return columns as directed
+            record = self.apply_tails_to_base(tail_RID, RID, key, column_mask)
+            # print("Found Tail records for base rid{}, key{}, columns{}".format(RID, key, record.columns))
+            return record
 
-    def apply_tails_to_base(self, Tail_RID:int, Base_RID:int, key:int, column_mask:list[bool]|bytearray) -> Record:
+        # return base RID if no tail records
+        record = Record(RID, key, [self.get_partial_record(RID, i + NUM_METADATA_COLUMNS) for i in range(len(column_mask))])
+        # print("Found Base record rid{}, key{}, columns{}".format(RID, key, record.columns))
+        return record
+
+    def apply_tails_to_base(self, Tail_RID:int, Base_RID:int, key:int, column_mask:list[int]) -> Record:
         """
         Calculates the record represented by the given tail record. Using non-cumulative tail records.
         """
         # go through tail records until all columns in column_mask have been found in schema, or base record is hit
         # columns may not be added in order, and some may not be in the tail records
-        columns = bytearray(len(column_mask))
+        columns = [None]*len(column_mask)
         working_mask = column_mask
+        aggregate_mask = column_mask
+        # print("all masks at agg {} work {} col {}".format(aggregate_mask, working_mask, column_mask))
         tail_rid = Tail_RID
-        while True in working_mask and tail_rid != Base_RID:
-            tail_schema = self.get_partial_record(tail_rid, SCHEMA_ENCODING_COLUMN)
-            # only check columns that are the intersection of the tail record schema and the column_mask
-            working_mask = schema_AND(working_mask, tail_schema)
-            # add each column to result if it is both part of the tail record's schema and the column_mask
-            for i, mask in enumerate(working_mask):
-                if mask:
-                    columns[i] = self.get_partial_record(tail_rid, i + NUM_METADATA_COLUMNS)
-            # subtract schema from column_mask, since we have added those values to the result
-            working_mask = schema_SUBTRACT(column_mask, tail_schema)
-            # move to next tail record
-            tail_rid = self.get_partial_record(tail_rid, INDIRECTION_COLUMN)
-            # check if we are at the base record
-            # TODO it may be better if we check the RID itself
-            if tail_rid == Base_RID:
-                break # we are done
+        # NOTE cumulative and non-cumulative implementations are functionally similar in this code base since records must be lined up along pages, non-cumulative tail records will write null values to pages not in the update range, but the schema_encoding should prevent those partial records from being read.
+        
+        while 1 in aggregate_mask:
+            is_tail, _, _ = rid_to_coords(tail_rid)
+            # print("appling tail", tail_rid)
+            if is_tail:
+                tail_schema = self.get_partial_record(tail_rid, SCHEMA_ENCODING_COLUMN)
+                # only check columns that are the intersection of the tail record schema and the column_mask
+                # print("0.0 masks at {} AND {}".format(aggregate_mask, tail_schema))
+                working_mask = schema_AND(aggregate_mask, tail_schema)
+                # print("0.1 aggregate_mask at {}".format(aggregate_mask))
+                # add each column to result if it is both part of the tail record's schema and the column_mask
+                for i, mask in enumerate(working_mask):
+                    if mask:
+                        columns[i] = self.get_partial_record(tail_rid, i + NUM_METADATA_COLUMNS)
+                        # print("add value", columns[i], "at", i)
+                # subtract schema from aggregate_mask, since we have added those values to the result
+                # print("1.0 masks at {} AND {}".format(aggregate_mask, tail_schema))
+                aggregate_mask = schema_SUBTRACT(aggregate_mask, tail_schema)
+                # print("1.1 aggregate_mask at {}".format(aggregate_mask))
+                # move to next tail record
+                tail_rid = self.get_partial_record(tail_rid, INDIRECTION_COLUMN)
+                # check if we are at the base record
+                # TODO it may be better if we check the RID itself
+                if tail_rid == Base_RID:
+                    break # we are done
+            else:
+                break
         # apply base record values for all schema still in working_mask
-        for i, mask in enumerate(working_mask):
+        # print("f aggregate_mask at {}".format(aggregate_mask))
+        for i, mask in enumerate(aggregate_mask):
             if mask:
-                columns[i] = self.get_partial_record(tail_rid, i + NUM_METADATA_COLUMNS)
+                columns[i] = self.get_partial_record(Base_RID, i + NUM_METADATA_COLUMNS)
 
-        # trim out unassigned columns
-        columns = [col for col in columns if col is not None]
+        # print(Base_RID, key, columns)
         return Record(Base_RID, key, columns)
 
     def locate_base_record(self, RID:int, key:int, column_mask:list[bool]) -> Record:
@@ -251,7 +272,7 @@ class Table:
         # build the record object
         return Record(RID, key, columns)
 
-    def get_partial_record(self, RID:int|bytearray, column:int) -> bytearray|list[int]:
+    def get_partial_record(self, RID:int, column:int) -> list[int]|int:
         """
         Accepts the RID and the column number and returns the partial record contained at the correct page and offset.
         NOTE: should not be used directly for any data column as it will not apply the tail records to the result.
@@ -262,12 +283,8 @@ class Table:
         Outputs:
             the partial record data: bytearray representing an int or list of 0 and 1 for schema
         """
-        if type(RID) == bytearray:
-            rid = bytearray_to_int(RID)
-        else:
-            rid = RID
         # get page number and offset
-        tail, page_num, offset = rid_to_coords(rid)
+        tail, page_num, offset = rid_to_coords(RID)
         # get raw data
         if tail:
             data = self.page_directory[column]["tail"][page_num].retrieve_direct(offset)
@@ -276,20 +293,19 @@ class Table:
 
         if column == SCHEMA_ENCODING_COLUMN:
             data = bytearray_to_schema(data, self.num_columns)
+        else:
+            data = bytearray_to_int(data)
         return data
 
-    def add_page(self, col_number:int, is_tail_page:bool=False):
+    def add_page(self, col_number:int, page_type:Literal["base"]|Literal["tail"]):
         """
         Adds a page when number of records exceeds page size
 
         INPUTS
             -col_number     int         The column that is being extended
         """
-        if is_tail_page:
-            page_type = "tail"
-        else:
-            page_type = "base"
-        self.page_directory[col_number][page_type].append(Page())
+        page = Page()
+        self.page_directory[col_number][page_type].append(page)
 
     def delete_record(self, base_RID:int) -> bool:
         # set the INDIRECTION_COLUMN of the base record to a tombstone value
@@ -297,7 +313,7 @@ class Table:
         tail, page_num, offset = rid_to_coords(base_RID)
         page = self.page_directory[INDIRECTION_COLUMN]["base"][page_num]
         page.overwrite_direct(int_to_bytearray(RID_TOMBSTONE_VALUE), offset)
-        pass
+        return True
 
     def __merge(self):
         print("merge is happening")

@@ -2,7 +2,6 @@
 Module Interfaces:
     Config for page size
 """
-# import config
 from lstore.config import PAGE_SIZE, FIXED_PARTIAL_RECORD_SIZE
 
 
@@ -25,7 +24,7 @@ class Page:
         Inputs: None for fixed size records
         Outputs: True if the page has enough space for the new record, otherwise False
         """
-        return FIXED_PARTIAL_RECORD_SIZE * self.num_records <= PAGE_SIZE
+        return FIXED_PARTIAL_RECORD_SIZE * self.num_records < PAGE_SIZE
 
     def write_direct(self, value:bytearray) -> None:
         """

@@ -1,7 +1,6 @@
 from lstore.table import Table, Record
 # from lstore.index import Index
 from typing import Literal
-from lstore.config import NUM_METADATA_COLUMNS
 
 
 class Query:
@@ -24,7 +23,11 @@ class Query:
     """
     def delete(self, primary_key:int) -> bool:
         # find the record
-        rid = self.table.index.locate(0, primary_key)
+        rid = self.table.index.locate(0, primary_key)[0]
+        # try:
+        #     rid = self.table.index.locate(0, primary_key)[0]
+        # except IndexError:
+        #     return False
         # delete record and return success state
         return self.table.delete_record(rid)
     
@@ -48,8 +51,11 @@ class Query:
     # Assume that select will never be called on a key that doesn't exist
     """
     def select(self, search_key:int, search_key_index:int, projected_columns_index:list[bool]) -> list[Record]|Literal[False]:
+        # print("select", projected_columns_index)
         # find the Record IDs
         rids = self.table.index.locate(search_key_index, search_key)
+        if rids is False:
+            return False
         # get relevant columns for the records
         records = [self.table.locate_record(rid, search_key, projected_columns_index, 0) for rid in rids]
         return records
@@ -68,6 +74,8 @@ class Query:
     def select_version(self, search_key, search_key_index, projected_columns_index, relative_version):
         # find the Record IDs
         rids = self.table.index.locate(search_key_index, search_key)
+        if rids is False:
+            return False
         # get relevant columns for the records
         records = [self.table.locate_record(rid, search_key, projected_columns_index, relative_version) for rid in rids]
         return records
@@ -80,11 +88,12 @@ class Query:
     """
     def update(self, primary_key, *columns):
         # find the base record with primary_key
-        # TODO return False if index fails to find rid
-        try:
-            rid = self.table.index.locate(NUM_METADATA_COLUMNS, primary_key)[0]
-        except IndexError:
-            return False
+        rid = self.table.index.locate(0, primary_key)[0]
+        # try:
+        #     rid = self.table.index.locate(NUM_METADATA_COLUMNS, primary_key)[0]
+        # except IndexError:
+        #     # print("update failed")
+        #     return False
         # append new tail record with *columns, and indirection to other tail record's RID and set base record's indirection to new tail's RID
         return self.table.append_tail_record(rid, columns)
 
@@ -113,17 +122,20 @@ class Query:
     def sum_version(self, start_range:int, end_range:int, aggregate_column_index:int, relative_version:int) -> int|Literal[False]:
         # ask index to find the relevant RIDs
         # TODO return False if no records where found
-        rid_set = self.table.index.locate_range(start_range, end_range, aggregate_column_index)
+        # print("searching for rids", start_range, end_range, aggregate_column_index)
+        rid_set = self.table.index.locate_range(start_range, end_range)
+        # print("rid set", rid_set)
         # get the attribute values and return the sum
-        record_list = [None]*len(rid_set) # preallocate an empty list
         # build a all 0 column mask except for the aggregate column
         column_mask = [0]*self.table.num_columns
         column_mask[aggregate_column_index] = 1
+        # print("sum", column_mask, aggregate_column_index)
         sum_value = 0
         # sum records after applying tails
         for rid in rid_set:
             record = self.table.locate_record(rid, 0, column_mask, relative_version)
-            sum_value += record.columns[0]
+            sum_value += record.columns[aggregate_column_index]
+            # print("sum value", sum_value)
         return sum_value
 
     

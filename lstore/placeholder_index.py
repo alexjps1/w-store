@@ -25,27 +25,24 @@ class DumbIndex:
         return rids
             
 
-    def locate_range(self, start_val:int, end_val:int, column_num:int) -> list[int]|Literal[False]:
+    def locate_range(self, start_key:int, end_key:int) -> list[int]:
+        """
+        Finds the range of RIDs for the given start and end primary key
+
+        Inputs:
+            - start_key, the start primary key value of the desired range
+            - end_key, the end primary key value of the desired range
+        Outputs:
+            - a list of rids for the range
+        """
         rids:list[int] = []
-        found_end = False
-        found_start = False
-        # check all pages for start_val
-        for n, page in enumerate(self.table.page_directory[column_num + NUM_METADATA_COLUMNS]["base"]):
+        # check all pages for start_val, values may not be sorted
+        for n, page in enumerate(self.table.page_directory[0 + NUM_METADATA_COLUMNS]["base"]):
             # check all offsets
             for i in range(page.num_records):
-                if bytearray_to_int(page.retrieve_direct(i)) == start_val:
-                    found_start = True
-                if bytearray_to_int(page.retrieve_direct(i)) == end_val:
-                    found_end = True
+                # if the value is in range add it
+                if bytearray_to_int(page.retrieve_direct(i)) >= start_key and bytearray_to_int(page.retrieve_direct(i)) <= end_key:
                     # assuming inclusive range
                     rids.append(self.get_rid(n, i))
-
-                if found_start and not found_end:
-                    # add rid while in the range
-                    rids.append(self.get_rid(n, i))
-                
         # return values only if both start and end were found
-        if found_start and found_end:
-            return rids
-        else:
-            return False
+        return sorted(rids)
