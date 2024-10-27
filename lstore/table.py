@@ -251,7 +251,7 @@ class Table:
             return record
 
         # return base RID if no tail records
-        record = Record(RID, key, [self.get_partial_record(RID, i + NUM_METADATA_COLUMNS) for i in range(len(column_mask))])
+        record = Record(RID, key, [self.get_partial_record(RID, i + NUM_METADATA_COLUMNS) if value else None for i, value in enumerate(column_mask)])
         # print("Found Base record rid{}, key{}, columns{}".format(RID, key, record.columns))
         return record
 
