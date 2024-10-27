@@ -9,8 +9,8 @@ However, might use B-Tree later for potential performance benefits on range quer
 """
 
 from typing import NewType, List, Union
-from bplus_tree import BPlusTree
-import config
+from lstore.bplus_tree import BPlusTree
+import lstore.config as config
 
 # NOTE: Assuming RIDs are integers for typing purposes
 RID = NewType('RID', int)
@@ -104,14 +104,14 @@ class Index:
         Create an empty index for the specified column.
         Warning: Run only on an empty table. Otherwise, the index will be incomplete.
         """
-        print(f"Indexing column {column_num}...")
-        # NOTE this must be updated if the table implementation changes
-        for page in self.table.page_directory[column_num]:
-            # iterate over all pages of the column
-            # NOTE pseudocode below; we must first define bytearray format for pages
-            for column_record in page.records:
-                # iterate over all records in the page
-                self.indices[column_num][column_record.value] = column_record.rid
+        if self.indices[column_num] is not None:
+            raise ValueError("Tried to create an empty index of an already-indexed column.")
+        if self.tree_index:
+            # create BPlusTree index
+            self.indices[column_num] = BPlusTree()
+        else:
+            # create dict index
+            self.indices[column_num] = {}
 
     def drop_index(self, column_num: int) -> None:
         """
