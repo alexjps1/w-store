@@ -5,7 +5,7 @@ from typing import Literal
 
 class Query:
     """
-    # Creates a Query object that can perform different queries on the specified table 
+    # Creates a Query object that can perform different queries on the specified table
     Queries that fail must return False
     Queries that succeed should return the result or True
     Any query that crashes (due to exceptions) should return False
@@ -14,7 +14,7 @@ class Query:
         self.table = table
         pass
 
-    
+
     """
     # internal Method
     # Read a record with specified RID
@@ -30,8 +30,8 @@ class Query:
         #     return False
         # delete record and return success state
         return self.table.delete_record(rid)
-    
-    
+
+
     """
     # Insert a record with specified columns
     # Return True upon successful insertion
@@ -40,7 +40,7 @@ class Query:
     def insert(self, *columns):
         return self.table.insert_record_into_pages(columns)
 
-    
+
     """
     # Finds all matching records with specified search key
     # :param search_key: the value you want to search based on
@@ -60,7 +60,7 @@ class Query:
         records = [self.table.locate_record(rid, search_key, projected_columns_index, 0) for rid in rids]
         return records
 
-    
+
     """
     # Finds all matching records with specified search key
     # :param search_key: the value you want to search based on
@@ -80,7 +80,7 @@ class Query:
         records = [self.table.locate_record(rid, search_key, projected_columns_index, relative_version) for rid in rids]
         return records
 
-    
+
     """
     # Update a record with specified key and columns
     # Returns True if update is successful
@@ -97,10 +97,10 @@ class Query:
         # append new tail record with *columns, and indirection to other tail record's RID and set base record's indirection to new tail's RID
         return self.table.append_tail_record(rid, columns)
 
-    
+
     """
-    :param start_range: int         # Start of the key range to aggregate 
-    :param end_range: int           # End of the key range to aggregate 
+    :param start_range: int         # Start of the key range to aggregate
+    :param end_range: int           # End of the key range to aggregate
     :param aggregate_columns: int  # Index of desired column to aggregate
     # this function is only called on the primary key.
     # Returns the summation of the given range upon success
@@ -109,10 +109,10 @@ class Query:
     def sum(self, start_range:int, end_range:int, aggregate_column_index:int) -> int|Literal[False]:
         return self.sum_version(start_range, end_range, aggregate_column_index, 0)
 
-    
+
     """
-    :param start_range: int         # Start of the key range to aggregate 
-    :param end_range: int           # End of the key range to aggregate 
+    :param start_range: int         # Start of the key range to aggregate
+    :param end_range: int           # End of the key range to aggregate
     :param aggregate_columns: int  # Index of desired column to aggregate
     :param relative_version: the relative version of the record you need to retrieve.
     # this function is only called on the primary key.
@@ -123,7 +123,8 @@ class Query:
         # ask index to find the relevant RIDs
         # TODO return False if no records where found
         # print("searching for rids", start_range, end_range, aggregate_column_index)
-        rid_set = self.table.index.locate_range(start_range, end_range)
+        # using col_num 0 becasue that is the primary key's index
+        rid_set = self.table.index.locate_range(start_range, end_range, 0)
         # print("rid set", rid_set)
         # get the attribute values and return the sum
         # build a all 0 column mask except for the aggregate column
@@ -138,7 +139,7 @@ class Query:
             # print("sum value", sum_value)
         return sum_value
 
-    
+
     """
     increments one column of the record
     this implementation should work if your select and update queries already work

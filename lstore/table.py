@@ -41,7 +41,7 @@ class Table:
         self.num_columns = num_columns
         assert self.num_columns + NUM_METADATA_COLUMNS <= MAX_COLUMNS
         # add metadata columns
-        self.page_directory = { 
+        self.page_directory = {
                                RID_COLUMN : {"base":[ Page() ], "tail":[]},
                                 INDIRECTION_COLUMN : {"base":[ Page() ], "tail":[]},                #all pages associated with base column
                                 SCHEMA_ENCODING_COLUMN : {"base":[ Page() ], "tail":[]},
@@ -153,12 +153,12 @@ class Table:
         write_cols:list[int] = [INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN]
         write_vals:list[bytearray] = [int_to_bytearray(indirection), schema_to_bytearray(schema), int_to_bytearray(timestamp)]
         # write RID
-        rid_page.write_direct(int_to_bytearray(RID)) 
+        rid_page.write_direct(int_to_bytearray(RID))
         # the rid page number is needed for RID generation, so it is redundant to include writing the rid in the for loop
         for i, col in enumerate(write_cols):
             page = self.get_writable_page(col, record_type)
             page.write_direct(write_vals[i])
-        
+
         # write data columns
         for i, col in enumerate(columns):
             page = self.get_writable_page(i + NUM_METADATA_COLUMNS, record_type)
@@ -178,7 +178,7 @@ class Table:
         """
         Obtains a tail/base page for the specified column with space for at least one write. NOTE if a new page needs to be allocated, a new page will be added for all columns, since the RIDs require pages to be lined up across columns.
 
-        Inputs: 
+        Inputs:
             - column, the column the page is part of
             - key, ether "tail" for tail records or "base" for base records
         Outputs:
@@ -204,7 +204,7 @@ class Table:
                 self.add_page(col, key)
 
         page = self.page_directory[column][key][-1]
-        # return the Page 
+        # return the Page
         return page
 
     def locate_record(self, RID: int, key:int, column_mask:list[int], version:int=0) -> Record|Literal[False]:
@@ -278,7 +278,7 @@ class Table:
 
         # print("base record")
         # debug_print(Base_RID)
-        
+
         while 1 in aggregate_mask:
             is_tail, _, _ = rid_to_coords(tail_rid)
             # print("applying tail", tail_rid)
@@ -319,7 +319,7 @@ class Table:
         """
         Accepts the RID and the column number and returns the partial record contained at the correct page and offset.
         NOTE: should not be used directly for any data column as it will not apply the tail records to the result.
-        
+
         Inputs:
             RID, the record id
             column: the column index of interest
@@ -377,7 +377,7 @@ class Table:
         """
         for i in range(self.num_columns):
             value = self.get_partial_record(base_RID, i + NUM_METADATA_COLUMNS)
-            self.index.remove_record_from_index(0, value, base_RID)
+            self.index.remove_record_from_index(i, value, base_RID)
 
     def __merge(self):
         print("merge is happening")

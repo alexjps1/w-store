@@ -57,7 +57,7 @@ class Index:
         result = []
         if self.tree_index:
             # run a range query on the B+ tree
-            return self.indices[col_num].range_query(value)
+            return self.indices[col_num].range_query(start_val, end_val)
         # iterate through all values in the range and grab from dict
         for val in range(start_val, end_val + 1):
             result.extend(self.locate(col_num, val))
@@ -108,7 +108,7 @@ class Index:
             raise ValueError("Tried to create an empty index of an already-indexed column.")
         if self.tree_index:
             # create BPlusTree index
-            self.indices[column_num] = BPlusTree()
+            self.indices[column_num] = BPlusTree(max_degree=config.INDEX_BPLUS_TREE_MAX_DEGREE)
         else:
             # create dict index
             self.indices[column_num] = {}
