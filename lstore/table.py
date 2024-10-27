@@ -80,8 +80,14 @@ class Table:
 
     def append_tail_record(self, base_RID:int, columns:list[int]) -> bool:
         """
-        Appends a new tail record for the given column updates. This assumes cumulative tail records. This is because the tail record RIDs require that the page entries for tail records line up. So even the non-cumulative implementation will require null values to be written to non-updated columns.
+        Appends a new tail record for the given column updates. This process is similar for cumulative and non-cumulative tail records. This is because the tail record RIDs require that the page entries for tail records line up. So even the non-cumulative implementation will require null values to be written to non-updated columns.
         Also assumes new base records default to their RID in both the RID_COLUMN and INDIRECTION_COLUMN.
+
+        Inputs:
+            - base_RID, the base record's RID
+            - columns, the updates the tail record should contain, None values should be placed in columns without an update.
+        Outputs:
+            - True on a successful update, False otherwise
         """
         # append new tail record with *columns, and indirection to other tail record's RID
         # find the most recent tail record from base record's indirection
@@ -141,7 +147,7 @@ class Table:
         Outputs:
             - True on a successful write, False otherwise
         """
-        tail, _, _ = rid_to_coords(RID)
+        # tail, _, _ = rid_to_coords(RID)
         # print("----Writing new record---- istail{}, rid{}, ind{}, schema{}, columns{}".format(int(tail), RID, indirection, schema, columns))
         timestamp = int(time()) # accurate to the second only
         # write the metadata columns
@@ -170,8 +176,11 @@ class Table:
         """
         Obtains a tail/base page for the specified column with space for at least one write. NOTE if a new page needs to be allocated, a new page will be added for all columns, since the RIDs require pages to be lined up across columns.
 
-        Input: column, the column the page is part of
-        Output: the page object
+        Inputs: 
+            - column, the column the page is part of
+            - key, ether "tail" for tail records or "base" for base records
+        Outputs:
+            - the page object
         """
         add_new = False
         if len(self.page_directory[column][key]) != 0:
@@ -246,7 +255,15 @@ class Table:
 
     def apply_tails_to_base(self, Tail_RID:int, Base_RID:int, key:int, column_mask:list[int]) -> Record:
         """
-        Calculates the record represented by the given tail record. Using non-cumulative tail records.
+        Calculates the record represented by the given tail record. Works for both cumulative and non-cumulative tail records as well as any past version.
+
+        Inputs:
+            - Tail_RID, the RID of the most recent tail record for this version
+            - Base_RID, the RID of the record's base record
+            - key, the column where the primary key is located
+            - column_mask, essentially the schema encoding for what columns to return the results for
+        Outputs:
+            - a Record object representing the record at the desired version
         """
         # go through tail records until all columns in column_mask have been found in schema, or base record is hit
         # columns may not be added in order, and some may not be in the tail records
@@ -296,15 +313,6 @@ class Table:
         # print(Base_RID, key, columns)
         return Record(Base_RID, key, columns)
 
-    def locate_base_record(self, RID:int, key:int, column_mask:list[bool]) -> Record:
-        # for given column_mask:
-        columns = []
-        for i, mask in enumerate(column_mask):
-            if mask:
-                columns.append(self.get_partial_record(RID, i + NUM_METADATA_COLUMNS))
-        # build the record object
-        return Record(RID, key, columns)
-
     def get_partial_record(self, RID:int, column:int) -> list[int]|int:
         """
         Accepts the RID and the column number and returns the partial record contained at the correct page and offset.
@@ -330,17 +338,28 @@ class Table:
             data = bytearray_to_int(data)
         return data
 
-    def add_page(self, col_number:int, page_type:Literal["base"]|Literal["tail"]):
+    def add_page(self, col_number:int, page_type:Literal["base"]|Literal["tail"]) -> None:
         """
         Adds a page when number of records exceeds page size
 
         INPUTS
-            -col_number     int         The column that is being extended
+            - col_number, The column that is being extended
+            - page_type, ether "base" for base pages, or "tail" for tail pages
+        Outputs:
+            - None, the page will be added to the end of the page_directory
         """
         page = Page()
         self.page_directory[col_number][page_type].append(page)
 
     def delete_record(self, base_RID:int) -> bool:
+        """
+        Deletes the record with the given RID by setting its base RID to the Tombstone RID.
+
+        Inputs:
+            - base_RID, the RID of the base record that is to be deleted
+        Outputs:
+            - True if the record was deleted, False otherwise
+        """
         # set the INDIRECTION_COLUMN of the base record to a tombstone value
         # get page number and offset
         tail, page_num, offset = rid_to_coords(base_RID)
