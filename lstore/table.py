@@ -1,5 +1,5 @@
-# from lstore.index import Index
-from lstore.placeholder_index import DumbIndex
+from lstore.index import Index
+# from lstore.placeholder_index import DumbIndex
 from time import time
 from lstore.page import Page
 from typing import List, Literal
@@ -39,7 +39,7 @@ class Table:
         self.name = name
         self.key = key
         self.num_columns = num_columns
-        assert self.num_columns <= MAX_COLUMNS
+        assert self.num_columns + NUM_METADATA_COLUMNS <= MAX_COLUMNS
         # add metadata columns
         self.page_directory = { 
                                RID_COLUMN : {"base":[ Page() ], "tail":[]},
@@ -51,9 +51,8 @@ class Table:
         for i in range(num_columns):
             self.page_directory[NUM_METADATA_COLUMNS + i] = {"base":[ Page() ], "tail":[]}
 
-        # self.index = Index(self)
-        self.index = DumbIndex(self)
-        pass
+        self.index = Index(self)
+        # self.index = DumbIndex(self)
 
     def insert_record_into_pages(self, columns:list[int]) -> bool:
         """
@@ -166,6 +165,9 @@ class Table:
             if schema[i] or record_type == "base":
                 # write data to page
                 page.write_direct(int_to_bytearray(col))
+                if record_type == "base":
+                    # update index with RID, i, and col
+                    self.index.add_record_to_index(i, col, RID)
             else:
                 # write a None value, it should be skipped by the schema encoding when read
                 page.write_direct(int_to_bytearray(0))
@@ -363,9 +365,19 @@ class Table:
         # set the INDIRECTION_COLUMN of the base record to a tombstone value
         # get page number and offset
         tail, page_num, offset = rid_to_coords(base_RID)
+        if not tail:
+            self.delete_record_from_index(base_RID)
         page = self.page_directory[INDIRECTION_COLUMN]["base"][page_num]
         page.overwrite_direct(int_to_bytearray(RID_TOMBSTONE_VALUE), offset)
         return True
+
+    def delete_record_from_index(self, base_RID:int) -> None:
+        """
+        Helper function for removing an entire record from the index
+        """
+        for i in range(self.num_columns):
+            value = self.get_partial_record(base_RID, i + NUM_METADATA_COLUMNS)
+            self.index.remove_record_from_index(0, value, base_RID)
 
     def __merge(self):
         print("merge is happening")
