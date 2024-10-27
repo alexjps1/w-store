@@ -49,7 +49,7 @@ MAX_COLUMNS = 2**FIXED_PARTIAL_RECORD_SIZE
 CUMULATIVE_TAIL_RECORDS = True
 
 # Index options
-INDEX_USE_BPLUS_TREE: bool = True  # if False, use dictionary-based index (bad for range queries)
+INDEX_USE_BPLUS_TREE: bool = False  # if False, use dictionary-based index (bad for range queries)
 INDEX_AUTOCREATE_ALL_COLS: bool = True  # if False, columns must be explicitly indexed before use
 INDEX_USE_DUMB_INDEX: bool = True  # if True, use dumb index to find records on unindexed col; False, throw error
 INDEX_BPLUS_TREE_MAX_DEGREE: int = 4  # max degree of B+ tree nodes

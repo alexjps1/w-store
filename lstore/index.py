@@ -60,7 +60,8 @@ class Index:
             return self.indices[col_num].range_query(start_val, end_val)
         # iterate through all values in the range and grab from dict
         for val in range(start_val, end_val + 1):
-            result.extend(self.locate(col_num, val))
+            extension = self.indices[col_num].get(val)
+            result.extend(extension if extension is not None else [])
         return result
 
     def add_record_to_index(self, col_num: int, val: int, rid: RID) -> None:
@@ -77,10 +78,10 @@ class Index:
         assert isinstance(self.indices[col_num], dict)
         if self.indices[col_num].get(val) is None:
             # new entry for this value
-            self.indices[col_num][record.columns[col_num]] = [record.rid]
+            self.indices[col_num][val] = [rid]
         else:
             # other records also have this value, add to the list
-            self.indices[col_num][record.columns[col_num]].append(record.rid)
+            self.indices[col_num][val].append(rid)
 
     def remove_record_from_index(self, col_num: int, val: int, rid: RID) -> None:
         """
