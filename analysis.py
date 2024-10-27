@@ -40,8 +40,13 @@ def time_graph_finish(x, y, step):
     return x_axis,y_axis
 
 def display_time_graph(x,y):
+    title_font = { 'family':"serif", "color":"red", 'size':20}
+    label_font = { 'family':"serif", 'color':'blue', 'size':15}
     fig, ax = plt.subplots()
     ax.plot(x, y)
+    plt.title("Time Efficiency", fontdict=title_font)
+    plt.xlabel("Time (seconds)", fontdict=label_font)
+    plt.ylabel('# of Operations', fontdict=label_font)
     plt.show()
 
 
