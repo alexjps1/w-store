@@ -1,3 +1,4 @@
+import unittest
 from bplus_tree import *
 from random import randint, choice
 import time
@@ -74,7 +75,6 @@ for i in available_choices:
 print("Verified that tree search still works properly after deletions")
 
 print("\nTEST: Do a massive amount of inserts")
-
 start_time = time.time()
 NUM_INSERTS = 1000000
 inserted_keys = set()
@@ -96,6 +96,27 @@ for i in range(num_deletions_to_do):
     t.delete(inserted_keys.pop(chosen_idx), rid=None)
 end_time = time.time()
 print(f"Did {num_deletions_to_do} deletions in {end_time - start_time} seconds")
+for key in inserted_keys:
+    assert isinstance(t.root, InternalNode)
+    try:
+        assert key in t._find_leaf(t.root, key).keys
+    except:
+        print(f"Tree search did not work while trying to find {key}")
+        print(t)
+        exit()
+print("Verified that tree search still works properly after massive deletion")
+if input("View resulting tree structure? [y/N]").lower().startswith("y"):
+    print(t)
+
+print("\nTEST: Insert another massive amount of keys to ensure that deletion did not corrupt the tree")
+start_time = time.time()
+inserted_keys = set()
+for i in range(NUM_INSERTS):
+    random_int = randint(0, NUM_INSERTS // 10)
+    inserted_keys.add(random_int)
+    t.insert(random_int, rand_rid())
+end_time = time.time()
+print(f"Did another {NUM_INSERTS} inserts in {end_time - start_time} seconds")
 for key in inserted_keys:
     assert isinstance(t.root, InternalNode)
     try:

@@ -90,6 +90,8 @@ class LeafNode(Node):
 
 class BPlusTree:
 
+    # magic methods
+
     def __init__(self, max_degree: int) -> None:
         assert max_degree >= 3
         self.root: Union[InternalNode, LeafNode, None] = None
@@ -102,6 +104,8 @@ class BPlusTree:
         if not self.root:
             return "Empty tree."
         return self.root.__str__()
+
+    # public methods
 
     def insert(self, key: int, rid: RID) -> None:
         """
@@ -121,9 +125,73 @@ class BPlusTree:
         if len(leaf.keys) > self.max_degree - 1:
             self._split_leaf(leaf)
 
+    def delete(self, key, rid):
+        """
+        Delete an RID from a key in the B+ tree (or remove the key entirely).
+        Warning: This method does not handle rebalancing the tree.
+        Warning: Passing None unique_val deletes all RIDs associated with the passed key
+        """
+        assert self.root is not None
+
+        deletion_leaf = self._find_leaf(self.root, key)
+        assert isinstance(deletion_leaf, LeafNode)
+
+        if not deletion_leaf or key not in deletion_leaf.keys:
+           return False # key doesn't exist
+
+        key_index = deletion_leaf.keys.index(key)
+
+        if rid is None:
+            # delete the key entirely
+            deletion_leaf.keys.pop(key_index)
+            deletion_leaf.rid_lists.pop(key_index)
+            return True
+        elif rid in deletion_leaf.rid_lists[key_index]:
+            # delete only the rid
+            deletion_leaf.rid_lists[key_index].remove(rid)
+        else:
+            return False # unique identifier doesn't exist under this key
+
+        # delete the key entirely if that was the last rid in it
+        if len(deletion_leaf.rid_lists[key_index]) == 0:
+           deletion_leaf.keys.pop(key_index)
+           deletion_leaf.rid_lists.pop(key_index)
+        return True
+
+    def point_query(self, key: int) -> List[RID]:
+        """
+        Return the RIDs associated with the key.
+        """
+        assert isinstance(self.root, Node)
+        leaf = self._find_leaf(self.root, key)
+        if key in leaf.keys:
+            return leaf.rid_lists[leaf.keys.index(key)]
+        # key not found
+        return []
+
+    def range_query(self, key_start: int, key_end: int) -> List[RID]:
+        """
+        Return the RIDs associated with keys in the range [key_start, key_end].
+        """
+        assert isinstance(self.root, Node)
+        leaf = self._find_leaf(self.root, key_start)
+        rids = []
+        while leaf is not None:
+            for i, k in enumerate(leaf.keys):
+                if key_start <= k <= key_end:
+                    rids.extend(leaf.rid_lists[i])
+            if leaf.keys[-1] >= key_end:
+                break
+            leaf = leaf.next
+        return rids
+
+
+    # private methods
+
     def _find_leaf(self, start_node: Node, key: int) -> LeafNode:
         """
-        Traverse the tree to find a leaf node to which the key should be inserted.
+        Traverse the tree to find a leaf node.
+        Helpful for finding where a key should be inserted, for example.
         """
         if isinstance(start_node, LeafNode):
             return start_node
@@ -232,37 +300,3 @@ class BPlusTree:
             self.root = new_root
         else:
             self._insert_into_parent(old_node, middle_key, new_node)
-
-
-    def delete(self, key, rid):
-        """
-        Delete an RID from a key in the B+ tree (or remove the key entirely).
-        Warning: This method does not handle rebalancing the tree.
-        Warning: Passing None unique_val deletes all RIDs associated with the passed key
-        """
-        assert self.root is not None
-
-        deletion_leaf = self._find_leaf(self.root, key)
-        assert isinstance(deletion_leaf, LeafNode)
-
-        if not deletion_leaf or key not in deletion_leaf.keys:
-           return False # key doesn't exist
-
-        key_index = deletion_leaf.keys.index(key)
-
-        if rid is None:
-            # delete the key entirely
-            deletion_leaf.keys.pop(key_index)
-            deletion_leaf.rid_lists.pop(key_index)
-            return True
-        elif rid in deletion_leaf.rid_lists[key_index]:
-            # delete only the rid
-            deletion_leaf.rid_lists[key_index].remove(rid)
-        else:
-            return False # unique identifier doesn't exist under this key
-
-        # delete the key entirely if that was the last rid in it
-        if len(deletion_leaf.rid_lists[key_index]) == 0:
-           deletion_leaf.keys.pop(key_index)
-           deletion_leaf.rid_lists.pop(key_index)
-        return True

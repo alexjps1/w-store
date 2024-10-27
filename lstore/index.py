@@ -9,6 +9,8 @@ However, might use B-Tree later for potential performance benefits on range quer
 """
 
 from typing import NewType, List, Union
+from bplus_tree import BPlusTree
+import config
 
 # NOTE: Assuming RIDs are integers for typing purposes
 RID = NewType('RID', int)
@@ -19,56 +21,88 @@ class Index:
     def __init__(self, table: "Table"):
         # One index per column
         self.table: "Table" = table
-        self.indices: List[Union[None, dict[int, List[RID]]]] = [None] * table.num_columns
+        self.indices: Union[List[Union[None, BPlusTree]], List[Union[None, dict[int, List[RID]]]]]
+        self.tree_index: bool = True if config.INDEX_USE_BPLUS_TREE else False
+        self.indices = [None] * table.num_columns
+        if config.INDEX_AUTOCREATE_ALL_COLS:
+            # create an index for all columns
+            for i in range(table.num_columns):
+                self.create_index(i)
 
     def locate(self, column_num: int, value: int) -> List[RID]:
         """
         Returns the RIDs of all records with the given value in the specified column
         """
         if self.indices[column_num] is None:
-            # index this column
-            self.create_index(column_num)
+            if config.INDEX_USE_DUMB_INDEX:
+                raise NotImplementedError("The desired column is not indexed and using dumb index to locate is not yet implemented.")
+            else:
+                raise ValueError("The desired column is not indexed and the configuration does not allow using dumb index to locate records.")
+        if self.tree_index:
+            # run a point query on the tree
+            return self.indices[column_num].point_query(value)
+        # run a point query on the dictionary
         return self.indices[column_num][value]
 
-    def locate_range(self, start_val: int, end_val: int, column_num: int) -> List[RID]:
+    def locate_range(self, start_val: int, end_val: int, col_num: int) -> List[RID]:
         """
         Returns the RIDs of all records with values within specified range in specified column
         """
+        if self.indices[col_num] is None:
+            # this column is not indexed
+            if config.INDEX_USE_DUMB_INDEX:
+                raise NotImplementedError("The desired column is not indexed and using dumb index to locate is not yet implemented.")
+            else:
+                raise ValueError("The desired column is not indexed and the configuration does not allow using dumb index to locate records.")
         result = []
+        if self.tree_index:
+            # run a range query on the B+ tree
+            return self.indices[col_num].range_query(value)
+        # iterate through all values in the range and grab from dict
         for val in range(start_val, end_val + 1):
-            result.extend(self.locate(column_num, val))
+            result.extend(self.locate(col_num, val))
         return result
 
-    def add_record_to_index(self, record: "Record") -> None:
+    def add_record_to_index(self, col_num: int, val: int, rid: RID) -> None:
         """
-        Add the RID to appropriate existing indices for columns.
-        It is assumed that the Record object will have the RID and the values for each column.
+        Add the RID to the appropriate index for the specified column and value.
+        This should be called once for every column on record insertion.
+        Calls to this function on unindexed columns will be ignored.
         """
-        assert self.table.num_columns == len(record.columns)
-        for i in range(self.table.num_columns):
-            if self.indices[i] is None:
-                # column is not being indexed, skip it
-                continue
-            if self.indices[i].get(record.columns[i]) is None:
-                # new entry for this value
-                self.indices[i][record.columns[i]] = [record.rid]
-            else:
-                # other records also have this value, add to the list
-                self.indices[i][record.columns[i]].append(record.rid)
-        pass
+        if self.indices[col_num] is None:
+            return
+        if self.tree_index:
+            self.indices[col_num].insert(val, rid)
+            return
+        assert isinstance(self.indices[col_num], dict)
+        if self.indices[col_num].get(val) is None:
+            # new entry for this value
+            self.indices[col_num][record.columns[col_num]] = [record.rid]
+        else:
+            # other records also have this value, add to the list
+            self.indices[col_num][record.columns[col_num]].append(record.rid)
 
-    def remove_record_from_index(self, record: "Record") -> None:
+    def remove_record_from_index(self, col_num: int, val: int, rid: RID) -> None:
         """
-        Remove the RID from all indices.
-        This function could be implemented w/ RID instead of Record, but it would take longer to find RID in each index.
+        Remove an entry from an index at a particular column.
+        This should be called once for every column on record deletion.
+        Calls to this function on unindexed columns will be ignored.
         """
-        for i in range(len(self.indices)):
-            self.indices[i] = None
+        if self.indices[col_num] is None:
+            return
+        if self.tree_index:
+            if self.indices[col_num].delete(val, rid) is False:
+                raise ValueError("The key to delete is not in the index.")
+            return
+        if self.indices[col_num].get(val) is None:
+            raise ValueError("The key to delete is not in the index.")
+        self.indices[col_num][val].remove(rid)
+
 
     def create_index(self, column_num: int) -> None:
         """
-        Index the specified column from scratch.
-        If an index already exists, it will be overwritten.
+        Create an empty index for the specified column.
+        Warning: Run only on an empty table. Otherwise, the index will be incomplete.
         """
         print(f"Indexing column {column_num}...")
         # NOTE this must be updated if the table implementation changes
@@ -78,10 +112,10 @@ class Index:
             for column_record in page.records:
                 # iterate over all records in the page
                 self.indices[column_num][column_record.value] = column_record.rid
-        pass
 
     def drop_index(self, column_num: int) -> None:
         """
         Drop the index of the specified column.
+        Warning: It will not be possible to recover the index, even by calling create_index.
         """
         self.indices[column_num] = None

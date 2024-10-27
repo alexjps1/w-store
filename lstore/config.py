@@ -47,6 +47,12 @@ PAGE_SIZE:int = 4096
 FIXED_PARTIAL_RECORD_SIZE:int = 4 # the size of data allowed in each column, used to calculate offsets within pages
 MAX_COLUMNS = 2**FIXED_PARTIAL_RECORD_SIZE
 
+# Index options
+INDEX_USE_BPLUS_TREE: bool = True  # if False, use dictionary-based index (bad for range queries)
+INDEX_AUTOCREATE_ALL_COLS: bool = True  # if False, columns must be explicitly indexed before use
+INDEX_USE_DUMB_INDEX: bool = True  # if True, use dumb index to find records on unindexed col; False, throw error
+
+
 # define RID attribute bit sizes
 # This defines the following constraints under the (1, 21, 10) = 32 format
 # - Only 4 billion inserts possible
@@ -74,7 +80,7 @@ def schema_SUBTRACT(column_mask:list[int], schema:list[int]) -> list[int]:
     assert len(column_mask) == len(schema)
     # subtracts schema from column_mask, True - False = True, True - True = False, False - True = False, False - False = False
     return [int(a and not b) for a, b in zip(column_mask, schema)]
-        
+
 def int_to_bytearray(data:int) -> bytearray:
     """
     Stores an integer as a bytearray with length set by FIXED_PARTIAL_RECORD_SIZE
@@ -109,5 +115,3 @@ def bytearray_to_schema(array:bytearray, length:int) -> list[bool]|list[int]:
     """
     num = bytearray_to_int(array)
     return [int(x) for x in list('{0:0b}'.format(num).zfill(length))]
-
-
