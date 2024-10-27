@@ -3,7 +3,7 @@ from lstore.placeholder_index import DumbIndex
 from time import time
 from lstore.page import Page
 from typing import List, Literal
-from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, MAX_COLUMNS, NUM_METADATA_COLUMNS, RID_TOMBSTONE_VALUE
+from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, MAX_COLUMNS, NUM_METADATA_COLUMNS, RID_TOMBSTONE_VALUE, CUMULATIVE_TAIL_RECORDS
 from lstore.config import schema_AND, schema_SUBTRACT, bytearray_to_int, int_to_bytearray, rid_to_coords, coords_to_rid, schema_to_bytearray, bytearray_to_schema
 
 def debug_print(debug_rid, table):
@@ -95,7 +95,20 @@ class Table:
         if old_tail_rid == RID_TOMBSTONE_VALUE:
             return False
 
-        schema_encoding = [1 if x is not None else 0 for x in columns]
+        if CUMULATIVE_TAIL_RECORDS:
+            # cumulative tail records store the current version of the record and no lookback is needed
+            schema_encoding = [1]*len(columns)
+            # set None values in columns to last record's values
+            new_columns = [0]*len(columns)
+            for i, value in enumerate(columns):
+                if value is None:
+                    # this part is unique to the cumulative records
+                    new_columns[i] = self.get_partial_record(old_tail_rid, i + NUM_METADATA_COLUMNS)
+                else:
+                    new_columns[i] = columns[i]
+            columns = new_columns
+        else:
+            schema_encoding = [1 if x is not None else 0 for x in columns]
         # get the page to append the new tail record rid
         page = self.get_writable_page(RID_COLUMN)
         # get info for new rid
