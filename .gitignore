@@ -186,3 +186,4 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/pycharm+all,windows,linux,macos,vim
 
 lstore/__pycache__
+__lstore_env__
