@@ -40,7 +40,7 @@ class Database():
     :param num_columns: int     #Number of Columns: all columns are integer
     :param key: int             #Index of table key in columns
     """
-    def create_table(self, name:str, num_columns:int, key_index:int) -> Table:
+    def create_table(self, name:str, num_columns:int, key_index:int, **kwargs) -> Table:
         """
         Creates a new table and returns it.
 
@@ -50,7 +50,7 @@ class Database():
             - key_index, TODO
         Outputs: table, the new table.
         """
-        table = Table(name, num_columns, key_index)
+        table = Table(name, num_columns, key_index, **kwargs)
         self.tables[name] = table
         return table
 

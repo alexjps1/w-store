@@ -18,11 +18,12 @@ RID = NewType('RID', int)
 
 class Index:
 
-    def __init__(self, table: "Table"):
+    def __init__(self, table: "Table", use_bplus:bool=config.INDEX_USE_BPLUS_TREE, degree:int=config.INDEX_BPLUS_TREE_MAX_DEGREE):
         # One index per column
         self.table: "Table" = table
         self.indices: Union[List[Union[None, BPlusTree]], List[Union[None, dict[int, List[RID]]]]]
-        self.tree_index: bool = True if config.INDEX_USE_BPLUS_TREE else False
+        self.tree_index: bool = use_bplus
+        self.degree: int = degree
         self.indices = [None] * table.num_columns
         if config.INDEX_AUTOCREATE_ALL_COLS:
             # create an index for all columns
@@ -109,7 +110,7 @@ class Index:
             raise ValueError("Tried to create an empty index of an already-indexed column.")
         if self.tree_index:
             # create BPlusTree index
-            self.indices[column_num] = BPlusTree(max_degree=config.INDEX_BPLUS_TREE_MAX_DEGREE)
+            self.indices[column_num] = BPlusTree(max_degree=self.degree)
         else:
             # create dict index
             self.indices[column_num] = {}

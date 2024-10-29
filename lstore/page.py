@@ -12,10 +12,12 @@ class Page:
         - Check if a new record can be added
         - Write a new record
     """
-    def __init__(self) -> None:
+    def __init__(self, page_size=PAGE_SIZE, record_size=FIXED_PARTIAL_RECORD_SIZE) -> None:
         # num_records is a count of how many records are contained in this page (column)
+        self.page_size:int = page_size
+        self.record_size: int = record_size
         self.num_records:int = 0
-        self.data:bytearray = bytearray(PAGE_SIZE)
+        self.data:bytearray = bytearray(self.page_size)
 
     def has_capacity(self) -> bool:
         """
@@ -24,7 +26,7 @@ class Page:
         Inputs: None for fixed size records
         Outputs: True if the page has enough space for the new record, otherwise False
         """
-        return FIXED_PARTIAL_RECORD_SIZE * self.num_records < PAGE_SIZE
+        return self.record_size * self.num_records <self.page_size 
 
     def write_direct(self, value:bytearray) -> None:
         """
@@ -33,9 +35,9 @@ class Page:
         Outputs: None
         """
         # this is the location of the start of this page entry
-        offset = FIXED_PARTIAL_RECORD_SIZE * self.num_records
+        offset = self.record_size * self.num_records
         # set the data at the calculated offset
-        self.data[offset:offset + FIXED_PARTIAL_RECORD_SIZE] = value
+        self.data[offset:offset + self.record_size] = value
         # we have +1 records in this column
         self.num_records += 1
 
@@ -43,9 +45,9 @@ class Page:
         """
         Overwrites the data at the given offset with the new value, this function should only be called to overwrite the indirection column of a base record to update it with the new current tail record.
         """
-        overwrite_offset = FIXED_PARTIAL_RECORD_SIZE * offset
+        overwrite_offset = self.record_size * offset
         # set the data at the calculated offset
-        self.data[overwrite_offset:overwrite_offset + FIXED_PARTIAL_RECORD_SIZE] = value
+        self.data[overwrite_offset:overwrite_offset + self.record_size] = value
         
 
     def retrieve_direct(self, offset:int) -> bytearray:
@@ -54,5 +56,5 @@ class Page:
         Inputs: offset, the record number for this page
         Outputs: the bytearray representing the record
         """
-        byte_offset = offset * FIXED_PARTIAL_RECORD_SIZE
-        return self.data[byte_offset:byte_offset + FIXED_PARTIAL_RECORD_SIZE]
+        byte_offset = offset *self.record_size 
+        return self.data[byte_offset:byte_offset + self.record_size]

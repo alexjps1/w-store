@@ -1,10 +1,12 @@
 from lstore.index import Index
-# from lstore.placeholder_index import DumbIndex
+from lstore.placeholder_index import DumbIndex
 from time import time
 from lstore.page import Page
 from typing import List, Literal
 from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, MAX_COLUMNS, NUM_METADATA_COLUMNS, RID_TOMBSTONE_VALUE, CUMULATIVE_TAIL_RECORDS
 from lstore.config import schema_AND, schema_SUBTRACT, bytearray_to_int, int_to_bytearray, rid_to_coords, coords_to_rid, schema_to_bytearray, bytearray_to_schema
+# graphing
+from lstore.config import FIXED_PARTIAL_RECORD_SIZE, PAGE_SIZE, INDEX_USE_BPLUS_TREE, OVERRIDE_WITH_DUMB_INDEX, INDEX_BPLUS_TREE_MAX_DEGREE
 
 def debug_print(debug_rid, table):
     x1, x2, x3 = rid_to_coords(debug_rid)
@@ -35,24 +37,38 @@ class Table:
     OUTPUT:
         -table object
     """
-    def __init__(self, name:str, num_columns:int, key:int):
+    def __init__(self, name:str, num_columns:int, key:int,
+                 cumulative_tails:bool=CUMULATIVE_TAIL_RECORDS,
+                 page_size=PAGE_SIZE,
+                 record_size=FIXED_PARTIAL_RECORD_SIZE,
+                 use_bplus=INDEX_USE_BPLUS_TREE,
+                 use_dumbindex=OVERRIDE_WITH_DUMB_INDEX,
+                 bplus_degree=INDEX_BPLUS_TREE_MAX_DEGREE):
         self.name = name
         self.key = key
         self.num_columns = num_columns
         assert self.num_columns + NUM_METADATA_COLUMNS <= MAX_COLUMNS
+        self.cumulative_tails = cumulative_tails
+        self.page_size = page_size
+        self.record_size = record_size
+        self.use_bplus=use_bplus
+        self.use_dumbindex=use_dumbindex
+        self.bplus_degree=bplus_degree
         # add metadata columns
         self.page_directory = {
-                               RID_COLUMN : {"base":[ Page() ], "tail":[]},
-                                INDIRECTION_COLUMN : {"base":[ Page() ], "tail":[]},                #all pages associated with base column
-                                SCHEMA_ENCODING_COLUMN : {"base":[ Page() ], "tail":[]},
-                                TIMESTAMP_COLUMN : {"base":[ Page() ], "tail":[]},
+                               RID_COLUMN : {"base":[ Page(self.page_size, self.record_size) ], "tail":[]},
+                                INDIRECTION_COLUMN : {"base":[ Page(self.page_size, self.record_size) ], "tail":[]},                #all pages associated with base column
+                                SCHEMA_ENCODING_COLUMN : {"base":[ Page(self.page_size, self.record_size) ], "tail":[]},
+                                TIMESTAMP_COLUMN : {"base":[ Page(self.page_size, self.record_size) ], "tail":[]},
                                 }
         # add data columns
         for i in range(num_columns):
-            self.page_directory[NUM_METADATA_COLUMNS + i] = {"base":[ Page() ], "tail":[]}
+            self.page_directory[NUM_METADATA_COLUMNS + i] = {"base":[ Page(self.page_size, self.record_size) ], "tail":[]}
 
-        self.index = Index(self)
-        # self.index = DumbIndex(self)
+        if not self.use_dumbindex:
+            self.index = Index(self, use_bplus=self.use_bplus, degree=self.bplus_degree)
+        else:
+            self.index = DumbIndex(self)
 
     def insert_record_into_pages(self, columns:list[int]) -> bool:
         """
@@ -100,7 +116,7 @@ class Table:
         if old_tail_rid == RID_TOMBSTONE_VALUE:
             return False
 
-        if CUMULATIVE_TAIL_RECORDS:
+        if self.cumulative_tails:
             # cumulative tail records store the current version of the record and no lookback is needed
             schema_encoding = [1]*len(columns)
             # set None values in columns to last record's values
@@ -350,7 +366,7 @@ class Table:
         Outputs:
             - None, the page will be added to the end of the page_directory
         """
-        page = Page()
+        page = Page(self.page_size, self.record_size)
         self.page_directory[col_number][page_type].append(page)
 
     def delete_record(self, base_RID:int) -> bool:
