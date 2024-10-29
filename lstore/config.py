@@ -84,13 +84,13 @@ def schema_SUBTRACT(column_mask:list[int], schema:list[int]) -> list[int]:
     # subtracts schema from column_mask, True - False = True, True - True = False, False - True = False, False - False = False
     return [int(a and not b) for a, b in zip(column_mask, schema)]
 
-def int_to_bytearray(data:int) -> bytearray:
+def int_to_bytearray(data:int, record_size:int=FIXED_PARTIAL_RECORD_SIZE) -> bytearray:
     """
     Stores an integer as a bytearray with length set by FIXED_PARTIAL_RECORD_SIZE
     Inputs: data, integer to store in the bytearray
     Outputs: a bytearray with size equal to FIXED_PARTIAL_RECORD_SIZE
     """
-    return bytearray(data.to_bytes(FIXED_PARTIAL_RECORD_SIZE, 'little'))
+    return bytearray(data.to_bytes(record_size, 'little'))
 
 def bytearray_to_int(array:bytearray) -> int:
     """
@@ -100,14 +100,14 @@ def bytearray_to_int(array:bytearray) -> int:
     """
     return int.from_bytes(bytes(array), 'little')
 
-def schema_to_bytearray(schema:list[bool]|list[int]) -> bytearray:
+def schema_to_bytearray(schema:list[bool]|list[int], record_size:int=FIXED_PARTIAL_RECORD_SIZE) -> bytearray:
     """
     Converts a schema encoding to a bytearray for storage, by first converting the schema to an int, and then a bytearray
     Inputs: schema, a list of 1 or 0 values
     Outputs: a bytearray of length equal to FIXED_PARTIAL_RECORD_SIZE containing the schema
     """
     num = int(''.join(str(x) for x in schema), 2)
-    return int_to_bytearray(num)
+    return int_to_bytearray(num, record_size)
 
 def bytearray_to_schema(array:bytearray, length:int) -> list[bool]|list[int]:
     """

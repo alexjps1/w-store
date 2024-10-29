@@ -143,7 +143,7 @@ class Table:
         # set base record's indirection to new tail's RID
         _, page_num, offset = rid_to_coords(base_RID)
         base_page = self.page_directory[INDIRECTION_COLUMN]["base"][page_num]
-        base_page.overwrite_direct(int_to_bytearray(new_tail_rid), offset)
+        base_page.overwrite_direct(int_to_bytearray(new_tail_rid, self.record_size), offset)
         # print("new tail")
         # debug_print(new_tail_rid, self)
         return success_state
@@ -167,9 +167,9 @@ class Table:
         timestamp = int(time()) # accurate to the second only
         # write the metadata columns
         write_cols:list[int] = [INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN]
-        write_vals:list[bytearray] = [int_to_bytearray(indirection), schema_to_bytearray(schema), int_to_bytearray(timestamp)]
+        write_vals:list[bytearray] = [int_to_bytearray(indirection, self.record_size), schema_to_bytearray(schema, self.record_size), int_to_bytearray(timestamp, self.record_size)]
         # write RID
-        rid_page.write_direct(int_to_bytearray(RID))
+        rid_page.write_direct(int_to_bytearray(RID, self.record_size))
         # the rid page number is needed for RID generation, so it is redundant to include writing the rid in the for loop
         for i, col in enumerate(write_cols):
             page = self.get_writable_page(col, record_type)
@@ -180,13 +180,13 @@ class Table:
             page = self.get_writable_page(i + NUM_METADATA_COLUMNS, record_type)
             if schema[i] or record_type == "base":
                 # write data to page
-                page.write_direct(int_to_bytearray(col))
+                page.write_direct(int_to_bytearray(col, self.record_size))
                 if record_type == "base":
                     # update index with RID, i, and col
                     self.index.add_record_to_index(i, col, RID)
             else:
                 # write a None value, it should be skipped by the schema encoding when read
-                page.write_direct(int_to_bytearray(0))
+                page.write_direct(int_to_bytearray(0, self.record_size))
         # update was successful
         return True
 
@@ -384,7 +384,7 @@ class Table:
         if not tail:
             self.delete_record_from_index(base_RID)
         page = self.page_directory[INDIRECTION_COLUMN]["base"][page_num]
-        page.overwrite_direct(int_to_bytearray(RID_TOMBSTONE_VALUE), offset)
+        page.overwrite_direct(int_to_bytearray(RID_TOMBSTONE_VALUE, self.record_size), offset)
         return True
 
     def delete_record_from_index(self, base_RID:int) -> None:
