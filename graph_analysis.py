@@ -13,10 +13,92 @@ class Graph_Gen:
 
     def main(self):
         db = Database()
-        # self.run_tail_record_test(db, base_inserts=100, num_queries=1000, domain=100)
-        # self.run_page_test(db, inserts=1000, domain=100)
+        self.run_tail_record_test(db, base_inserts=100, num_queries=1000, domain=100)
+        self.run_page_test(db, inserts=1000, domain=200)
+        self.speed_plots(db, inserts=1000, sum_size=200)
 
-    def speed_plots(self):
+    def speed_plots(self, db:Database, inserts:int, sum_size:int):
+        table_settings = {
+                "Hashmap Indexing": [True, 4096, 4, False, False, 4],
+                "B+ Tree Indexing": [True, 4096, 4, True, False, 4],
+                "Linear Search": [True, 4096, 4, False, True, 4],
+                }
+        opp_times = {0:{}, 1:{}, 2:{}}
+        for i, key in enumerate(table_settings):
+            data, t = self.run_operations_experiment(num_inserts=inserts,
+                                              num_updates=inserts,
+                                              num_selects=inserts,
+                                              num_ranges=inserts,
+                                              num_deletes=0,
+                                              sum_size=sum_size,
+                                              db=db,
+                                              settings=table_settings[key],
+                                              query_skip_map=[False, False, False, False, True],
+                                              update_all=False)
+            opp_times[i] = data
+        labels = list(table_settings.keys())
+        fig, ax = plt.subplots()
+        y1 = [opp_times[0][0][i]/i for i in range(1, len(opp_times[0][0]))]
+        y2 = [opp_times[1][0][i]/i for i in range(1, len(opp_times[1][0]))]
+        y3 = [opp_times[2][0][i]/i for i in range(1, len(opp_times[2][0]))]
+        # inserts
+        ax.plot(y1, label='inserts - {}'.format(labels[0]))
+        ax.plot(y2, label='inserts - {}'.format(labels[1]))
+        ax.plot(y3, label='inserts - {}'.format(labels[2]))
+        # labels and settings
+        ax.set_xlabel('Operations (#)', fontdict=self.label_font)
+        ax.set_ylabel('Time (s)/Operation', fontdict=self.label_font)
+        ax.legend()
+        ax.set_title("Insert Performance", fontdict=self.title_font)
+        plt.show()
+    
+        fig, ax = plt.subplots()
+        y1 = [opp_times[0][1][i]/i for i in range(1, len(opp_times[0][1]))]
+        y2 = [opp_times[1][1][i]/i for i in range(1, len(opp_times[1][1]))]
+        y3 = [opp_times[2][1][i]/i for i in range(1, len(opp_times[2][1]))]
+        # updates
+        ax.plot(y1, label='updates - {}'.format(labels[0]))
+        ax.plot(y2, label='updates - {}'.format(labels[1]))
+        ax.plot(y3, label='updates - {}'.format(labels[2]))
+        # labels and settings
+        ax.set_xlabel('Operations (#)', fontdict=self.label_font)
+        ax.set_ylabel('Time (s)/Operation', fontdict=self.label_font)
+        ax.legend()
+        ax.set_title("Update Performance", fontdict=self.title_font)
+        plt.show()
+    
+        fig, ax = plt.subplots()
+        y1 = [opp_times[0][2][i]/i for i in range(1, len(opp_times[0][2]))]
+        y2 = [opp_times[1][2][i]/i for i in range(1, len(opp_times[1][2]))]
+        y3 = [opp_times[2][2][i]/i for i in range(1, len(opp_times[2][2]))]
+        # selects
+        ax.plot(y1, label='selects - {}'.format(labels[0]))
+        ax.plot(y2, label='selects - {}'.format(labels[1]))
+        ax.plot(y3, label='selects - {}'.format(labels[2]))
+        # labels and settings
+        ax.set_xlabel('Operations (#)', fontdict=self.label_font)
+        ax.set_ylabel('Time (s)/Operation', fontdict=self.label_font)
+        ax.legend()
+        ax.set_title("Point Query Performance", fontdict=self.title_font)
+        plt.show()
+    
+        fig, ax = plt.subplots()
+        y1 = [opp_times[0][4][i]/i for i in range(1, len(opp_times[0][4]))]
+        y2 = [opp_times[1][4][i]/i for i in range(1, len(opp_times[1][4]))]
+        y3 = [opp_times[2][4][i]/i for i in range(1, len(opp_times[2][4]))]
+        # sums
+        ax.plot(y1, label='sum range({}) - {}'.format(sum_size, labels[0]))
+        ax.plot(y2, label='sum range({}) - {}'.format(sum_size, labels[1]))
+        ax.plot(y3, label='sum range({}) - {}'.format(sum_size, labels[2]))
+    
+        # labels and settings
+        ax.set_xlabel('Operations (#)', fontdict=self.label_font)
+        ax.set_ylabel('Time (s)/Operation', fontdict=self.label_font)
+        ax.legend()
+        ax.set_title("Range Query Performance", fontdict=self.title_font)
+        plt.show()
+
+    def archive_plots(self):
         # run graph analysis
         sum_size = 150
     
@@ -38,19 +120,13 @@ class Graph_Gen:
     
         db = Database()
         table_settings = {
-                "cumulative (hashmap)": [True, 4096, 4, False, False, 4],
-                "non-cumulative (hashmap)": [False, 4096, 4, False, False, 4],
-                "cumulative (b+ tree)": [True, 4096, 4, True, False, 4],
-                "non-cumulative (b+ tree)": [False, 4096, 4, True, False, 4],
-                # "b+ tree max degree 4": [True, 4096, 4, True, False, 4],
-                "b+ tree max degree 8": [True, 4096, 4, True, False, 8],
-                "b+ tree max degree 16": [True, 4096, 4, True, False, 16],
-                "b+ tree max degree 32": [True, 4096, 4, True, False, 32],
-                "b+ tree max degree 64": [True, 4096, 4, True, False, 64],
+                "Hashmap Indexing": [True, 4096, 4, False, False, 4],
+                "B+ Tree Indexing": [True, 4096, 4, True, False, 4],
+                "Linear Search": [True, 4096, 4, False, True, 4],
                 }
 
         for j, setting in enumerate(table_settings):
-            delta_t[j] = self.run_operations_experiment(n_records, n_updates, n_selects, n_ranges, n_deletes, sum_size,
+            delta_t[j], t = self.run_operations_experiment(n_records, n_updates, n_selects, n_ranges, n_deletes, sum_size,
                                                         db,
                                                         table_settings[setting])
     
@@ -237,8 +313,8 @@ class Graph_Gen:
                                               num_deletes=0,
                                               sum_size=0,
                                               db=db,
-                                              settings=[False, 4096*(i+1), 4, False, False, 4],
-                                              query_skip_map=[False, False, False, False, True],
+                                              settings=[False, 4*(i+1), 4, False, False, 4],
+                                              query_skip_map=[False, False, False, True, True],
                                               update_all=False)
             opp_times[0].append(t[0] + t[1] + t[2])
         for i in range(domain):
@@ -250,7 +326,7 @@ class Graph_Gen:
                                               sum_size=0,
                                               db=db,
                                               settings=[False, 4096, 4*(i+1), False, False, 4],
-                                              query_skip_map=[False, False, False, False, True],
+                                              query_skip_map=[False, False, False, True, True],
                                               update_all=False)
             opp_times[1].append(t[0] + t[1] + t[2])
 
