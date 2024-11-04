@@ -46,6 +46,7 @@ Constants
 PAGE_SIZE:int = 4096
 # FIXED_PAGE_DATA_SIZE is the length in bytes of the data stored in each page (1 entry, for 1 column)
 FIXED_PARTIAL_RECORD_SIZE:int = 8 # the size of data allowed in each column, used to calculate offsets within pages
+BUFFERPOOL_SIZE = 15 # number of pages allowed in the bufferpool
 # MAX_COLUMNS = 0 # total number of data + metadata columns addressable for a table
 CUMULATIVE_TAIL_RECORDS = True
 
