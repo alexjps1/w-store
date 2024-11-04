@@ -1,3 +1,4 @@
+from math import log
 """
 Centralized storage for all configuration options and constants.
 Imported by other modules when they need access to a configuration option or a constant.
@@ -44,8 +45,8 @@ Constants
 # PAGE_SIZE is the byte capacity for each page
 PAGE_SIZE:int = 4096
 # FIXED_PAGE_DATA_SIZE is the length in bytes of the data stored in each page (1 entry, for 1 column)
-FIXED_PARTIAL_RECORD_SIZE:int = 4 # the size of data allowed in each column, used to calculate offsets within pages
-MAX_COLUMNS = 2**FIXED_PARTIAL_RECORD_SIZE
+FIXED_PARTIAL_RECORD_SIZE:int = 8 # the size of data allowed in each column, used to calculate offsets within pages
+# MAX_COLUMNS = 0 # total number of data + metadata columns addressable for a table
 CUMULATIVE_TAIL_RECORDS = True
 
 # Index options
@@ -61,12 +62,15 @@ INDEX_BPLUS_TREE_MAX_DEGREE: int = 4  # max degree of B+ tree nodes
 # - Only 4 billion inserts possible
 # - Max of 32 columns
 #  - Only supports 4 byte integer values
+# update to (1, 54, 9) = 64 format
+FORMAT_BITS = 8 * FIXED_PARTIAL_RECORD_SIZE # currently 64
 TAIL_BIT = 1
-PAGE_NUMBER_BITS = 21
-OFFSET_BITS = 10
+OFFSET_BITS = int(log(PAGE_SIZE / FIXED_PARTIAL_RECORD_SIZE, 2)) # 2**OFFSET_BITS = PAGE_SIZE / FIXED_PARTIAL_RECORD_SIZE
+# OFFSET_BITS = 9 # 2**OFFSET_BITS = PAGE_SIZE / FIXED_PARTIAL_RECORD_SIZE
+PAGE_NUMBER_BITS = FORMAT_BITS - TAIL_BIT - OFFSET_BITS # PAGE_NUMBER_BITS = 54
 RID_BIT_SIZE = TAIL_BIT + PAGE_NUMBER_BITS + OFFSET_BITS
 
-RID_TOMBSTONE_VALUE = coords_to_rid(False, 2**21-1, 2**10-1)
+RID_TOMBSTONE_VALUE = coords_to_rid(False, 2**PAGE_NUMBER_BITS-1, 2**OFFSET_BITS-1)
 
 RID_COLUMN = 0
 INDIRECTION_COLUMN = 1

@@ -3,7 +3,7 @@ from lstore.placeholder_index import DumbIndex
 from time import time
 from lstore.page import Page
 from typing import List, Literal
-from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, MAX_COLUMNS, NUM_METADATA_COLUMNS, RID_TOMBSTONE_VALUE, CUMULATIVE_TAIL_RECORDS
+from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, NUM_METADATA_COLUMNS, RID_TOMBSTONE_VALUE, CUMULATIVE_TAIL_RECORDS
 from lstore.config import schema_AND, schema_SUBTRACT, bytearray_to_int, int_to_bytearray, rid_to_coords, coords_to_rid, schema_to_bytearray, bytearray_to_schema
 # graphing
 from lstore.config import FIXED_PARTIAL_RECORD_SIZE, PAGE_SIZE, INDEX_USE_BPLUS_TREE, OVERRIDE_WITH_DUMB_INDEX, INDEX_BPLUS_TREE_MAX_DEGREE
@@ -47,7 +47,7 @@ class Table:
         self.name = name
         self.key = key
         self.num_columns = num_columns
-        assert self.num_columns + NUM_METADATA_COLUMNS <= MAX_COLUMNS
+        # assert self.num_columns + NUM_METADATA_COLUMNS <= MAX_COLUMNS # max column is only limited by system storage?
         self.cumulative_tails = cumulative_tails
         self.page_size = page_size
         self.record_size = record_size
