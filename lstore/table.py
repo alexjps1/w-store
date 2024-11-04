@@ -1,6 +1,6 @@
 from lstore.index import Index
 from lstore.placeholder_index import DumbIndex
-from time import time
+from time import time_ns
 from lstore.page import Page
 from typing import List, Literal
 from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, NUM_METADATA_COLUMNS, RID_TOMBSTONE_VALUE, CUMULATIVE_TAIL_RECORDS
@@ -54,6 +54,7 @@ class Table:
         self.use_bplus=use_bplus
         self.use_dumbindex=use_dumbindex
         self.bplus_degree=bplus_degree
+        self.ref_time = time_ns()
         # add metadata columns
         self.page_directory = {
                                RID_COLUMN : {"base":[ Page(self.page_size, self.record_size) ], "tail":[]},
@@ -164,7 +165,7 @@ class Table:
         """
         # tail, _, _ = rid_to_coords(RID)
         # print("----Writing new record---- istail{}, rid{}, ind{}, schema{}, columns{}".format(int(tail), RID, indirection, schema, columns))
-        timestamp = int(time()) # accurate to the second only
+        timestamp = time_ns() - self.ref_time # relative time since table was created, though 64 bit ints can store the full time anyway
         # write the metadata columns
         write_cols:list[int] = [INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN]
         write_vals:list[bytearray] = [int_to_bytearray(indirection, self.record_size), schema_to_bytearray(schema, self.record_size), int_to_bytearray(timestamp, self.record_size)]
