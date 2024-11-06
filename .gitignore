@@ -187,3 +187,4 @@ $RECYCLE.BIN/
 
 lstore/__pycache__
 __lstore_env__
+disk/*
