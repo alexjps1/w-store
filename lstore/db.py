@@ -1,9 +1,6 @@
-"""
-Module Interfaces:
-    Table for building tables
-"""
 from pathlib import Path
 from lstore.table import Table
+from lstore.config import DATABASE_DIR
 
 class Database():
     """
@@ -16,23 +13,30 @@ class Database():
     def __init__(self) -> None:
         # set of tables, identified by their name
         self.tables:dict[str, Table] = {}   # this assumes no 2 tables have the same name
+        self.database_path:Path = DATABASE_DIR
+        self.table_info_file = "__table_info__.bin"
 
-    # Not required for milestone1
     def open(self, path:str):
         """
         Loads the database from disk.
         Inputs: path, the location of the database.
-        Outputs: the set of tables (self.tables stores this in memory) || None and self.tables is updated within the function.
+        Outputs: None, self.tables is updated by self.get_table
         """
-        python_path = Path(path)
-        pass
+        self.database_path = Path(DATABASE_DIR, path)
+        if self.database_path.exists():
+            # database already exists, but we will load the tables later
+            pass
+        else:
+            # make a new database
+            self.database_path.mkdir(parents=True)
 
-    # Not required for milestone1 according to available tester code
     def close(self) -> None:
         """
-        Shuts down the database, and probably saves the database to disk.
+        Shuts down the database, and saves the database to disk.
         """
-        pass
+        # save database to disk
+        for table in self.tables.values():
+            table.page_directory.save_all()
 
     """
     # Creates a new table
@@ -50,7 +54,16 @@ class Database():
             - key_index, TODO
         Outputs: table, the new table.
         """
-        table = Table(name, num_columns, key_index, **kwargs)
+        path = Path(DATABASE_DIR, f"{self.database_path}", f"{name}")
+        if not path.exists():
+            path.mkdir(parents=True)
+        # write table info
+        table_info_file = Path(path, self.table_info_file)
+        table_info_file.write_bytes(bytearray([num_columns, key_index]))
+
+        # build the table
+        table = Table(name, self.database_path, num_columns, key_index, **kwargs)
+        # add table to table dictionary
         self.tables[name] = table
         return table
 
@@ -67,6 +80,7 @@ class Database():
         """
         if name in self.tables.keys():
             del self.tables[name]
+            # TODO remove table from disk
 
     
     """
@@ -79,7 +93,18 @@ class Database():
         Inputs: name, the name of the table to return.
         Outputs: Table object with the given name OR False if table could not be found
         """
-        if name in self.tables.keys():
-            return self.tables[name]
+        # load table from disk
+        path = Path(DATABASE_DIR, f"{self.database_path}", f"{name}")
+        # table info file path
+        table_info_file = Path(path, self.table_info_file)
+        if path.exists():
+            # get the table info
+            num_col, key_index = list(table_info_file.read_bytes())
+            # build table object
+            table = Table(name, self.database_path, num_col, key_index)
+            # update table dictionary
+            self.tables[name] = table
+            # return the table
+            return table
         else:
             return False

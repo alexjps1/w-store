@@ -1,5 +1,7 @@
 from lstore.page import Page
 from lstore.config import BUFFERPOOL_SIZE
+from lstore.file_manager import FileManager
+from pathlib import Path
 from time import time_ns
 """
 Abstraction of the Page Directory and contained Bufferpool
@@ -12,9 +14,13 @@ class PageWrapper:
     def __init__(self, page:Page, column:int, is_tail:bool, page_number:int) -> None:
         self.column:int = column
         self.is_tail:bool = is_tail
+        self.is_pinned:bool = False
         self.page_number:int = page_number
         self.__page:Page = page
         self.accessed:int = 0 # time when this page was last used
+
+    def is_dirty(self) -> bool:
+        return self.__page.is_dirty
 
     def get_page(self) -> Page:
         """
@@ -32,22 +38,36 @@ class PageDirectory:
 
     PageDirectory handles management of the bufferpool
     """
-    def __init__(self, bufferpool_num_pages:int=BUFFERPOOL_SIZE) -> None:
+    def __init__(self, table_name:str, database_name:Path, bufferpool_num_pages:int=BUFFERPOOL_SIZE) -> None:
         self.max_pages:int = bufferpool_num_pages
         self.bufferpool:list[PageWrapper] = []
+        self.file_manager = FileManager(table_name, database_name)
         self.num_pages:int = 0
+
+    def save_all(self) -> None:
+        """
+        Saves all pages in bufferpool to disc. Used when table is closed.
+        """
+        for page in self.bufferpool:
+            self.__save_page(page)
 
     def __save_page(self, page:PageWrapper) -> None:
         """
         Saves the input page to disc
         """
-        pass
+        self.file_manager.page_to_file(page)
 
     def __load_page(self, column:int, is_tail:bool, page_number:int) -> PageWrapper:
         """
         Loads the desired page from disc
         """
-        pass
+        page = self.file_manager.file_to_page(column, is_tail, page_number)
+        if page is not None:
+            return page
+        else:
+            # faild to load file
+            print(column, is_tail, page_number)
+            assert False
 
     def __sort_bufferpool(self) -> None:
         """
@@ -66,7 +86,9 @@ class PageDirectory:
                 return page.get_page()
         # page was not in bufferpool, load it
         # evict least recently used page
-        self.__save_page(self.bufferpool[-1])
+        if not self.bufferpool[-1].is_dirty():
+            # only save the page if it is dirty (it has been written to)
+            self.__save_page(self.bufferpool[-1])
         # load page from disc
         pagewrapper = self.__load_page(column, is_tail, page_number)
         # replace evicted page with loaded page

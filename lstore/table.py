@@ -1,12 +1,16 @@
 from lstore.index import Index
 from lstore.placeholder_index import DumbIndex
+from lstore.page_directory import PageDirectory
 from time import time_ns
 from lstore.page import Page
 from typing import List, Literal
+from pathlib import Path
 from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, NUM_METADATA_COLUMNS, RID_TOMBSTONE_VALUE, CUMULATIVE_TAIL_RECORDS
 from lstore.config import schema_AND, schema_SUBTRACT, bytearray_to_int, int_to_bytearray, rid_to_coords, coords_to_rid, schema_to_bytearray, bytearray_to_schema
+
 # graphing
 from lstore.config import FIXED_PARTIAL_RECORD_SIZE, PAGE_SIZE, INDEX_USE_BPLUS_TREE, OVERRIDE_WITH_DUMB_INDEX, INDEX_BPLUS_TREE_MAX_DEGREE
+
 
 def debug_print(debug_rid, table):
     x1, x2, x3 = rid_to_coords(debug_rid)
@@ -37,7 +41,7 @@ class Table:
     OUTPUT:
         -table object
     """
-    def __init__(self, name:str, num_columns:int, key:int,
+    def __init__(self, name:str, database_name:Path, num_columns:int, key:int,
                  cumulative_tails:bool=CUMULATIVE_TAIL_RECORDS,
                  page_size=PAGE_SIZE,
                  record_size=FIXED_PARTIAL_RECORD_SIZE,
@@ -55,16 +59,23 @@ class Table:
         self.use_dumbindex=use_dumbindex
         self.bplus_degree=bplus_degree
         self.ref_time = time_ns()
+        self.current_base_page_number:int = 0 # index of the current base pages that are not full
+        self.current_tail_page_number:int = -1 # index of the current tail pages that are not full, start at -1 since we do not start with any tail pages allocated
         # add metadata columns
-        self.page_directory = {
-                               RID_COLUMN : {"base":[ Page(self.page_size, self.record_size) ], "tail":[]},
-                                INDIRECTION_COLUMN : {"base":[ Page(self.page_size, self.record_size) ], "tail":[]},                #all pages associated with base column
-                                SCHEMA_ENCODING_COLUMN : {"base":[ Page(self.page_size, self.record_size) ], "tail":[]},
-                                TIMESTAMP_COLUMN : {"base":[ Page(self.page_size, self.record_size) ], "tail":[]},
-                                }
+        metadata_cols = [RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN]
+        self.page_directory = PageDirectory(name, database_name)
+        for col in metadata_cols:
+            self.page_directory.insert_page(Page(self.page_size, self.record_size),
+                                            col,
+                                            False,
+                                            self.current_base_page_number)
+
         # add data columns
         for i in range(num_columns):
-            self.page_directory[NUM_METADATA_COLUMNS + i] = {"base":[ Page(self.page_size, self.record_size) ], "tail":[]}
+            self.page_directory.insert_page(Page(self.page_size, self.record_size),
+                                            NUM_METADATA_COLUMNS + i,
+                                            False,
+                                            self.current_base_page_number)
 
         if not self.use_dumbindex:
             self.index = Index(self, use_bplus=self.use_bplus, degree=self.bplus_degree)
@@ -83,15 +94,15 @@ class Table:
         # TODO return False on a failed insert
         # make new Base RID
         # get writable base page
-        page = self.get_writable_page(RID_COLUMN, key="base")
+        page = self.get_writable_page(RID_COLUMN, False)
         # get info for new rid
         offset = page.num_records
-        page_num = self.page_directory[RID_COLUMN]["base"].index(page)
+        page_num = self.current_base_page_number
         # create the new rid
         new_rid = coords_to_rid(False, page_num, offset)
         # write metadata, put RID in both RID_COLUMN and INDIRECTION_COLUMN
         # write metadata and data columns
-        success_state = self.write_new_record(new_rid, new_rid, [0]*self.num_columns, columns, page, "base")
+        success_state = self.write_new_record(new_rid, new_rid, [0]*self.num_columns, columns, page, False)
         return success_state
 
     def append_tail_record(self, base_RID:int, columns:list[int]) -> bool:
@@ -132,24 +143,24 @@ class Table:
         else:
             schema_encoding = [1 if x is not None else 0 for x in columns]
         # get the page to append the new tail record rid
-        page = self.get_writable_page(RID_COLUMN)
+        page = self.get_writable_page(RID_COLUMN, True)
         # get info for new rid
         offset = page.num_records
-        page_num = self.page_directory[RID_COLUMN]["tail"].index(page)
+        page_num = self.current_tail_page_number
         # create the new rid
         new_tail_rid = coords_to_rid(True, page_num, offset)
         # write metadata and data columns
-        success_state = self.write_new_record(new_tail_rid, old_tail_rid, schema_encoding, columns, page, "tail")
+        success_state = self.write_new_record(new_tail_rid, old_tail_rid, schema_encoding, columns, page, True)
 
         # set base record's indirection to new tail's RID
         _, page_num, offset = rid_to_coords(base_RID)
-        base_page = self.page_directory[INDIRECTION_COLUMN]["base"][page_num]
+        base_page = self.page_directory.retrieve_page(INDIRECTION_COLUMN, False, page_num)
         base_page.overwrite_direct(int_to_bytearray(new_tail_rid, self.record_size), offset)
         # print("new tail")
         # debug_print(new_tail_rid, self)
         return success_state
 
-    def write_new_record(self, RID:int, indirection:int, schema:list[int], columns:list[int], rid_page:Page, record_type:Literal["tail"]|Literal["base"]) -> bool:
+    def write_new_record(self, RID:int, indirection:int, schema:list[int], columns:list[int], rid_page:Page, is_tail:bool) -> bool:
         """
         Helper function for writing a new record
 
@@ -173,16 +184,16 @@ class Table:
         rid_page.write_direct(int_to_bytearray(RID, self.record_size))
         # the rid page number is needed for RID generation, so it is redundant to include writing the rid in the for loop
         for i, col in enumerate(write_cols):
-            page = self.get_writable_page(col, record_type)
+            page = self.get_writable_page(col, is_tail)
             page.write_direct(write_vals[i])
 
         # write data columns
         for i, col in enumerate(columns):
-            page = self.get_writable_page(i + NUM_METADATA_COLUMNS, record_type)
-            if schema[i] or record_type == "base":
+            page = self.get_writable_page(i + NUM_METADATA_COLUMNS, is_tail)
+            if schema[i] or not is_tail:
                 # write data to page
                 page.write_direct(int_to_bytearray(col, self.record_size))
-                if record_type == "base":
+                if not is_tail:
                     # update index with RID, i, and col
                     self.index.add_record_to_index(i, col, RID)
             else:
@@ -191,7 +202,7 @@ class Table:
         # update was successful
         return True
 
-    def get_writable_page(self, column:int, key:Literal["tail"]|Literal["base"]="tail") -> Page:
+    def get_writable_page(self, column:int, is_tail:bool=True) -> Page:
         """
         Obtains a tail/base page for the specified column with space for at least one write. NOTE if a new page needs to be allocated, a new page will be added for all columns, since the RIDs require pages to be lined up across columns.
 
@@ -202,8 +213,9 @@ class Table:
             - the page object
         """
         add_new = False
-        if len(self.page_directory[column][key]) != 0:
-            page = self.page_directory[column][key][-1]
+        if (not is_tail and self.current_base_page_number >= 0) or (is_tail and self.current_tail_page_number >= 0):
+            current_page_number = self.current_base_page_number if not is_tail else self.current_tail_page_number
+            page = self.page_directory.retrieve_page(column, is_tail, current_page_number)
             if not page.has_capacity():
                 # add a new page
                 # print("\n######### {} Page Full #########\n".format(key))
@@ -216,11 +228,15 @@ class Table:
             add_new = True
 
         if add_new:
-            # add new page for all columns
-            for col in self.page_directory.keys():
-                self.add_page(col, key)
+            if is_tail:
+                self.current_tail_page_number += 1
+            else:
+                self.current_base_page_number += 1
+            # TODO test only adding one page
+            self.add_page(column, is_tail)
 
-        page = self.page_directory[column][key][-1]
+        current_page_number = self.current_base_page_number if not is_tail else self.current_tail_page_number
+        page = self.page_directory.retrieve_page(column, is_tail, current_page_number)
         # return the Page
         return page
 
@@ -346,10 +362,7 @@ class Table:
         # get page number and offset
         tail, page_num, offset = rid_to_coords(RID)
         # get raw data
-        if tail:
-            data = self.page_directory[column]["tail"][page_num].retrieve_direct(offset)
-        else:
-            data = self.page_directory[column]["base"][page_num].retrieve_direct(offset)
+        data = self.page_directory.retrieve_page(column, tail, page_num).retrieve_direct(offset)
 
         if column == SCHEMA_ENCODING_COLUMN:
             data = bytearray_to_schema(data, self.num_columns)
@@ -357,7 +370,7 @@ class Table:
             data = bytearray_to_int(data)
         return data
 
-    def add_page(self, col_number:int, page_type:Literal["base"]|Literal["tail"]) -> None:
+    def add_page(self, col_number:int, is_tail:bool) -> None:
         """
         Adds a page when number of records exceeds page size
 
@@ -367,8 +380,9 @@ class Table:
         Outputs:
             - None, the page will be added to the end of the page_directory
         """
+        current_page_number = self.current_base_page_number if not is_tail else self.current_tail_page_number
         page = Page(self.page_size, self.record_size)
-        self.page_directory[col_number][page_type].append(page)
+        self.page_directory.insert_page(page, col_number, is_tail, current_page_number)
 
     def delete_record(self, base_RID:int) -> bool:
         """
@@ -384,7 +398,7 @@ class Table:
         tail, page_num, offset = rid_to_coords(base_RID)
         if not tail:
             self.delete_record_from_index(base_RID)
-        page = self.page_directory[INDIRECTION_COLUMN]["base"][page_num]
+        page = self.page_directory.retrieve_page(INDIRECTION_COLUMN, False, page_num)
         page.overwrite_direct(int_to_bytearray(RID_TOMBSTONE_VALUE, self.record_size), offset)
         return True
 

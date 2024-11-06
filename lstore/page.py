@@ -14,6 +14,7 @@ class Page:
     """
     def __init__(self, page_size=PAGE_SIZE, record_size=FIXED_PARTIAL_RECORD_SIZE) -> None:
         # num_records is a count of how many records are contained in this page (column)
+        self.is_dirty:bool = False
         self.page_size:int = page_size
         self.record_size: int = record_size
         self.num_records:int = 0
@@ -40,6 +41,7 @@ class Page:
         self.data[offset:offset + self.record_size] = value
         # we have +1 records in this column
         self.num_records += 1
+        self.is_dirty = True
 
     def overwrite_direct(self, value:bytearray, offset:int) -> None:
         """
@@ -48,6 +50,7 @@ class Page:
         overwrite_offset = self.record_size * offset
         # set the data at the calculated offset
         self.data[overwrite_offset:overwrite_offset + self.record_size] = value
+        self.is_dirty = True
         
 
     def retrieve_direct(self, offset:int) -> bytearray:
