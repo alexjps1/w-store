@@ -22,8 +22,9 @@ class Database():
         Inputs: path, the location of the database.
         Outputs: None, self.tables is updated by self.get_table
         """
-        self.database_path = Path(DATABASE_DIR, path)
-        if self.database_path.exists():
+        full_path = Path(DATABASE_DIR, path)
+        self.database_path = Path(path)
+        if full_path.exists():
             # database already exists, but we will load the tables later
             pass
         else:

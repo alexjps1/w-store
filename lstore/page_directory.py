@@ -1,6 +1,5 @@
 from lstore.page import Page
-from lstore.config import BUFFERPOOL_SIZE
-from lstore.file_manager import FileManager
+from lstore.config import BUFFERPOOL_SIZE, DATABASE_DIR
 from pathlib import Path
 from time import time_ns
 """
@@ -41,6 +40,7 @@ class PageDirectory:
     def __init__(self, table_name:str, database_name:Path, bufferpool_num_pages:int=BUFFERPOOL_SIZE) -> None:
         self.max_pages:int = bufferpool_num_pages
         self.bufferpool:list[PageWrapper] = []
+        print(table_name, database_name)
         self.file_manager = FileManager(table_name, database_name)
         self.num_pages:int = 0
 
@@ -49,7 +49,8 @@ class PageDirectory:
         Saves all pages in bufferpool to disc. Used when table is closed.
         """
         for page in self.bufferpool:
-            self.__save_page(page)
+            if page.is_dirty():
+                self.__save_page(page)
 
     def __save_page(self, page:PageWrapper) -> None:
         """
@@ -86,13 +87,14 @@ class PageDirectory:
                 return page.get_page()
         # page was not in bufferpool, load it
         # evict least recently used page
-        if not self.bufferpool[-1].is_dirty():
+        if len(self.bufferpool) > 0 and self.bufferpool[-1].is_dirty():
             # only save the page if it is dirty (it has been written to)
             self.__save_page(self.bufferpool[-1])
         # load page from disc
         pagewrapper = self.__load_page(column, is_tail, page_number)
         # replace evicted page with loaded page
-        self.bufferpool[-1] = pagewrapper
+        if len(self.bufferpool) > 0:
+            self.bufferpool[-1] = pagewrapper
         # access page object in wrapper
         page = pagewrapper.get_page()
         # sort bufferpool, pagewrapper should be at index 0 after
@@ -104,17 +106,44 @@ class PageDirectory:
         """
         Adds a page to the PageDirectory, it may be sent directly to disc
         """
-        if self.num_pages < self.max_pages:
-            # bufferpool is not full
-            self.bufferpool.append(PageWrapper(page, column, is_tail, page_number))
-            self.num_pages += 1
-            self.__sort_bufferpool()
+        # save new page directly to disc
+        self.__save_page(PageWrapper(page, column, is_tail, page_number))
+
+
+class FileManager:
+    def __init__(self, table_name:str, database_name:Path):
+        self.database_name = database_name
+        self.table_name:str = table_name
+    
+    def file_to_page(self, column:int, is_tail:bool, page_number:int) -> PageWrapper|None:
+        """
+        Reads a previously saved page from disk, returns the PageWrapper for the page or None if the page could not be found.
+        """
+        if is_tail:
+            istail_str = "t"
         else:
-            # save new page directly to disc
-            self.__save_page(PageWrapper(page, column, is_tail, page_number))
-            # code for adding new page to bufferpool instead
-            # bufferpool is full, evict a page, then add a page
-            # self.__save_page(self.bufferpool[-1])
-            # # replace evicted page with new one
-            # self.bufferpool[-1] = PageWrapper(page, column, is_tail, page_number)
-            # self.__sort_bufferpool()
+            istail_str = "b"
+        file_name = Path(DATABASE_DIR, f"{self.database_name}", f"{self.table_name}", f"col{column}_{istail_str}_{page_number}.bin")
+        # check if path exists
+        if file_name.exists():
+            page = Page()
+            page.data = bytearray(file_name.read_bytes())
+            page_wrapper = PageWrapper(page, column, is_tail, page_number)
+            return page_wrapper
+        else:
+            print("Error with saving page")
+            return None
+
+    def page_to_file(self, page:PageWrapper):
+        """Writes page_wrapper information to corresponding file"""
+        if page.is_tail:
+            istail_str = "t"
+        else:
+            istail_str = "b"
+        file_name = Path(DATABASE_DIR, f"{self.database_name}", f"{self.table_name}", f"col{page.column}_{istail_str}_{page.page_number}.bin")
+        # check if path exists
+        if not file_name.parent.exists():
+            # make the file path if it doesn't exist
+            file_name.parent.mkdir(parents=True)
+        # write the binary file
+        file_name.write_bytes(page.get_page().data)
