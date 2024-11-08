@@ -100,6 +100,7 @@ class Table:
         page_num = self.current_base_page_number
         # create the new rid
         new_rid = coords_to_rid(False, page_num, offset)
+        # print(f"base RID{new_rid} page{page} page#{page_num} offset{offset}")
         # write metadata, put RID in both RID_COLUMN and INDIRECTION_COLUMN
         # write metadata and data columns
         success_state = self.write_new_record(new_rid, new_rid, [0]*self.num_columns, columns, page, False)
@@ -107,7 +108,7 @@ class Table:
 
     def append_tail_record(self, base_RID:int, columns:list[int]) -> bool:
         """
-        Appends a new tail record for the given column updates. This process is similar for cumulative and non-cumulative tail records. This is because the tail record RIDs require that the page entries for tail records line up. So even the non-cumulative implementation will require null values to be written to non-updated columns.
+        Appends a new tail record for the given column updates. None values will be skipped.
         Also assumes new base records default to their RID in both the RID_COLUMN and INDIRECTION_COLUMN.
 
         Inputs:
@@ -120,7 +121,6 @@ class Table:
         # find the most recent tail record from base record's indirection
         # check tail != base, or that Base Records default to their RIDs in the INDIRECTION_COLUMN instead of a null value
         old_tail_rid = self.get_partial_record(base_RID, INDIRECTION_COLUMN)
-        # print("base")
         # debug_print(base_RID, self)
         # print("old tail")
         # debug_print(old_tail_rid, self)
@@ -149,12 +149,14 @@ class Table:
         page_num = self.current_tail_page_number
         # create the new rid
         new_tail_rid = coords_to_rid(True, page_num, offset)
+        # print(f"tail RID{new_tail_rid} page{page} page#{page_num} offset{offset}")
         # write metadata and data columns
         success_state = self.write_new_record(new_tail_rid, old_tail_rid, schema_encoding, columns, page, True)
 
         # set base record's indirection to new tail's RID
         _, page_num, offset = rid_to_coords(base_RID)
         base_page = self.page_directory.retrieve_page(INDIRECTION_COLUMN, False, page_num)
+        assert base_page is not None
         base_page.overwrite_direct(int_to_bytearray(new_tail_rid, self.record_size), offset)
         # print("new tail")
         # debug_print(new_tail_rid, self)
@@ -170,13 +172,14 @@ class Table:
             - schema, the schema encoding for the new record, for base pages this is all 0's
             - columns, the data columns to insert
             - rid_page, a reference to the RID page for the new record, this is needed to build the RID, so passing it into this function saves looking it up again
-            - record_type, ether "tail" for tail records or "base" for base records
+            - is_tail, ether True for tail records or False for base records
         Outputs:
             - True on a successful write, False otherwise
         """
         # tail, _, _ = rid_to_coords(RID)
         # print("----Writing new record---- istail{}, rid{}, ind{}, schema{}, columns{}".format(int(tail), RID, indirection, schema, columns))
         timestamp = time_ns() - self.ref_time # relative time since table was created, though 64 bit ints can store the full time anyway
+        # print(f"## WRITE:: RID{RID}, col{columns}")
         # write the metadata columns
         write_cols:list[int] = [INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN]
         write_vals:list[bytearray] = [int_to_bytearray(indirection, self.record_size), schema_to_bytearray(schema, self.record_size), int_to_bytearray(timestamp, self.record_size)]
@@ -204,39 +207,64 @@ class Table:
 
     def get_writable_page(self, column:int, is_tail:bool=True) -> Page:
         """
-        Obtains a tail/base page for the specified column with space for at least one write. NOTE if a new page needs to be allocated, a new page will be added for all columns, since the RIDs require pages to be lined up across columns.
+        Obtains a tail/base page for the specified column with space for at least one write. NOTE that a new page needs to be allocated if any column is full.
 
         Inputs:
             - column, the column the page is part of
-            - key, ether "tail" for tail records or "base" for base records
+            - is_tail, ether True for tail records or False for base records
         Outputs:
             - the page object
         """
         add_new = False
+        new_page = False
         if (not is_tail and self.current_base_page_number >= 0) or (is_tail and self.current_tail_page_number >= 0):
-            current_page_number = self.current_base_page_number if not is_tail else self.current_tail_page_number
-            page = self.page_directory.retrieve_page(column, is_tail, current_page_number)
-            if not page.has_capacity():
-                # add a new page
-                # print("\n######### {} Page Full #########\n".format(key))
-                add_new = True
+            # get the current base or tail page number
+            if is_tail:
+                current_page_number = self.current_tail_page_number
             else:
-                return page
+                current_page_number = self.current_base_page_number
+            # try to get the page
+            page = self.page_directory.retrieve_page(column, is_tail, current_page_number)
+            if page is not None:
+                if not page.has_capacity():
+                    # page was found, but it was full
+                    # print("\n######### {} Page {} Full col{} offset{} #########\n".format("Tail" if is_tail else "Base", page, column, page.num_records))
+                    new_page = True
+                    add_new = True
+                else:
+                    # print("--------- {} Page Not {} Full col{} offset{}---------".format("Tail" if is_tail else "Base", page, column, page.num_records))
+                    # page was found and it was not full, return the page
+                    return page
+            else:
+                # page was not found, make a new one
+                # print("********* No Page *********")
+                add_new = True
         else:
-            # add the first new page
+            # add the first new page, this is functionally the same as the "if not page.has_capacity()" block above,
+            # as the -1 "page" is "full" and we need a new page
             # print("add first set of {} pages".format(key))
+            # print("$$$$$$$$$ First page $$$$$$$$$")
+            new_page = True
             add_new = True
 
         if add_new:
-            if is_tail:
-                self.current_tail_page_number += 1
-            else:
-                self.current_base_page_number += 1
-            # TODO test only adding one page
+            if new_page:
+                # print( column == RID_COLUMN)
+                # some new pages are in the same page row, new page row only after a page is filled
+                if is_tail:
+                    # print("current_tail_page_number now ", self.current_tail_page_number + 1)
+                    self.current_tail_page_number += 1
+                else:
+                    self.current_base_page_number += 1
             self.add_page(column, is_tail)
 
-        current_page_number = self.current_base_page_number if not is_tail else self.current_tail_page_number
+        # get the current base or tail page number
+        if is_tail:
+            current_page_number = self.current_tail_page_number
+        else:
+            current_page_number = self.current_base_page_number
         page = self.page_directory.retrieve_page(column, is_tail, current_page_number)
+        assert page is not None
         # return the Page
         return page
 
@@ -376,7 +404,7 @@ class Table:
 
         INPUTS
             - col_number, The column that is being extended
-            - page_type, ether "base" for base pages, or "tail" for tail pages
+            - is_tail, ether False for base pages, or True for tail pages
         Outputs:
             - None, the page will be added to the end of the page_directory
         """

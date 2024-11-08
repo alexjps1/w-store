@@ -1,5 +1,6 @@
 from lstore.page import Page
-from lstore.config import BUFFERPOOL_SIZE, DATABASE_DIR
+from lstore.config import BUFFERPOOL_SIZE, DATABASE_DIR, FIXED_PARTIAL_RECORD_SIZE
+from lstore.config import int_to_bytearray, bytearray_to_int
 from pathlib import Path
 from time import time_ns
 """
@@ -40,7 +41,7 @@ class PageDirectory:
     def __init__(self, table_name:str, database_name:Path, bufferpool_num_pages:int=BUFFERPOOL_SIZE) -> None:
         self.max_pages:int = bufferpool_num_pages
         self.bufferpool:list[PageWrapper] = []
-        print(table_name, database_name)
+        # print(table_name, database_name)
         self.file_manager = FileManager(table_name, database_name)
         self.num_pages:int = 0
 
@@ -58,7 +59,7 @@ class PageDirectory:
         """
         self.file_manager.page_to_file(page)
 
-    def __load_page(self, column:int, is_tail:bool, page_number:int) -> PageWrapper:
+    def __load_page(self, column:int, is_tail:bool, page_number:int) -> PageWrapper|None:
         """
         Loads the desired page from disc
         """
@@ -67,8 +68,7 @@ class PageDirectory:
             return page
         else:
             # faild to load file
-            print(column, is_tail, page_number)
-            assert False
+            return None
 
     def __sort_bufferpool(self) -> None:
         """
@@ -77,7 +77,7 @@ class PageDirectory:
         # most recent == largest number, so sort -accessed will place the most recent at index 0
         self.bufferpool.sort(key=lambda x: -x.accessed)
 
-    def retrieve_page(self, column:int, is_tail:bool, page_number:int) -> Page:
+    def retrieve_page(self, column:int, is_tail:bool, page_number:int) -> Page|None:
         """
         Returns the desired page, if it is in the bufferpool it will be returned directly, otherwise it will be loaded into the bufferpool, then it will be returned.
         """
@@ -86,21 +86,29 @@ class PageDirectory:
             if page.is_tail == is_tail and page.column == column and page.page_number == page_number:
                 return page.get_page()
         # page was not in bufferpool, load it
-        # evict least recently used page
-        if len(self.bufferpool) > 0 and self.bufferpool[-1].is_dirty():
-            # only save the page if it is dirty (it has been written to)
-            self.__save_page(self.bufferpool[-1])
         # load page from disc
         pagewrapper = self.__load_page(column, is_tail, page_number)
-        # replace evicted page with loaded page
-        if len(self.bufferpool) > 0:
-            self.bufferpool[-1] = pagewrapper
-        # access page object in wrapper
-        page = pagewrapper.get_page()
-        # sort bufferpool, pagewrapper should be at index 0 after
-        self.__sort_bufferpool()
-        # return page
-        return page
+        if pagewrapper is not None:
+            # evict least recently used page, if bufferpool is full
+            if len(self.bufferpool) >= self.max_pages and self.bufferpool[-1].is_dirty():
+                # only save the page if it is dirty (it has been written to)
+                self.__save_page(self.bufferpool[-1])
+            # replace evicted page with loaded page
+            if len(self.bufferpool) < self.max_pages:
+                # add loaded page to bufferpool, since it is not full
+                self.bufferpool.append(pagewrapper)
+            else:
+                # replace evicted page with loaded page, since bufferpool is full
+                self.bufferpool[-1] = pagewrapper
+            # access page object in wrapper
+            page = pagewrapper.get_page()
+            # sort bufferpool, pagewrapper should be at index 0 after
+            self.__sort_bufferpool()
+            # return page
+            return page
+        else:
+            # page was not found
+            return None
 
     def insert_page(self, page:Page, column:int, is_tail:bool, page_number:int):
         """
@@ -123,15 +131,21 @@ class FileManager:
             istail_str = "t"
         else:
             istail_str = "b"
-        file_name = Path(DATABASE_DIR, f"{self.database_name}", f"{self.table_name}", f"col{column}_{istail_str}_{page_number}.bin")
+        file_name = Path(DATABASE_DIR, f"{self.database_name}", f"{self.table_name}", f"{istail_str}_col{column}_{page_number}.bin")
         # check if path exists
+        # print(str(file_name))
         if file_name.exists():
             page = Page()
-            page.data = bytearray(file_name.read_bytes())
+            saved_data = bytearray(file_name.read_bytes())
+            # cut out saved num_records, it is same length as FIXED_PARTIAL_RECORD_SIZE
+            page.num_records = bytearray_to_int(saved_data[:FIXED_PARTIAL_RECORD_SIZE])
+            # the rest of the data is the record data
+            page.data = saved_data[FIXED_PARTIAL_RECORD_SIZE:]
             page_wrapper = PageWrapper(page, column, is_tail, page_number)
             return page_wrapper
         else:
-            print("Error with saving page")
+            # did not find page
+            # print(f"No file to load col{column}_{istail_str}_{page_number}.bin")
             return None
 
     def page_to_file(self, page:PageWrapper):
@@ -140,10 +154,46 @@ class FileManager:
             istail_str = "t"
         else:
             istail_str = "b"
-        file_name = Path(DATABASE_DIR, f"{self.database_name}", f"{self.table_name}", f"col{page.column}_{istail_str}_{page.page_number}.bin")
+        file_name = Path(DATABASE_DIR, f"{self.database_name}", f"{self.table_name}", f"{istail_str}_col{page.column}_{page.page_number}.bin")
         # check if path exists
+        # print(f"writing file::::: {file_name}")
         if not file_name.parent.exists():
             # make the file path if it doesn't exist
             file_name.parent.mkdir(parents=True)
+        # save the current number of records in the page as well
+        extra_data = int_to_bytearray(page.get_page().num_records)
         # write the binary file
-        file_name.write_bytes(page.get_page().data)
+        file_name.write_bytes(extra_data + page.get_page().data)
+
+if __name__ == "__main__":
+    """
+    Test saving/loading
+    """
+    test_page = Page()
+    # write data to test page
+    l = 415
+    data: list[int] = [0]*l
+    for i in range(l):
+        test_page.write_direct(int_to_bytearray(56 * i))
+        data[i] = 56*i
+    # make file manager object
+    fm = FileManager("test", Path("TestDB"))
+    page_wrapper = PageWrapper(test_page, 0, False, 0)
+    num_records = page_wrapper.get_page().num_records
+    # save test page to disc
+    fm.page_to_file(page_wrapper)
+    # load test page from disc
+    new_pagewrapper = fm.file_to_page(0, False, 0)
+    # compare data, with loaded data
+    if new_pagewrapper is not None:
+        num_records_load = new_pagewrapper.get_page().num_records
+        print("Assert num_records (save){} == num_records (load){} :: {}".format(num_records, num_records_load, num_records == num_records_load))
+        test_data = True
+        load_data = [0]*l
+        for i, x in enumerate(data):
+            load_data[i] = bytearray_to_int(new_pagewrapper.get_page().retrieve_direct(i))
+            if load_data[i] != x:
+                test_data = False
+        print(f"Assert save_data == load_data :: {test_data}\nsave_data :: {data}\nload_data :: {load_data}")
+    else:
+        print("Failed to load file column 0, base, page 0")

@@ -27,7 +27,7 @@ class Page:
         Inputs: None for fixed size records
         Outputs: True if the page has enough space for the new record, otherwise False
         """
-        return self.record_size * self.num_records <self.page_size 
+        return self.record_size * self.num_records < self.page_size 
 
     def write_direct(self, value:bytearray) -> None:
         """

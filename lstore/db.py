@@ -24,12 +24,13 @@ class Database():
         """
         full_path = Path(DATABASE_DIR, path)
         self.database_path = Path(path)
+        # print(full_path, path, self.database_path)
         if full_path.exists():
             # database already exists, but we will load the tables later
             pass
         else:
             # make a new database
-            self.database_path.mkdir(parents=True)
+            full_path.mkdir(parents=True)
 
     def close(self) -> None:
         """
