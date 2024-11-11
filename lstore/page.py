@@ -27,7 +27,7 @@ class Page:
         Inputs: None for fixed size records
         Outputs: True if the page has enough space for the new record, otherwise False
         """
-        return self.record_size * self.num_records < self.page_size 
+        return self.record_size * self.num_records < self.page_size
 
     def write_direct(self, value:bytearray) -> None:
         """
@@ -45,13 +45,14 @@ class Page:
 
     def overwrite_direct(self, value:bytearray, offset:int) -> None:
         """
-        Overwrites the data at the given offset with the new value, this function should only be called to overwrite the indirection column of a base record to update it with the new current tail record.
+        Overwrites the data at the given offset with the new value.
+        Called only to overwrite indirection col of a base record with the new current tail record.
         """
         overwrite_offset = self.record_size * offset
         # set the data at the calculated offset
         self.data[overwrite_offset:overwrite_offset + self.record_size] = value
         self.is_dirty = True
-        
+
 
     def retrieve_direct(self, offset:int) -> bytearray:
         """
@@ -59,5 +60,5 @@ class Page:
         Inputs: offset, the record number for this page
         Outputs: the bytearray representing the record
         """
-        byte_offset = offset *self.record_size 
+        byte_offset = offset *self.record_size
         return self.data[byte_offset:byte_offset + self.record_size]

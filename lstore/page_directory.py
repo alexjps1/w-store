@@ -77,7 +77,16 @@ class PageDirectory:
         # most recent == largest number, so sort -accessed will place the most recent at index 0
         self.bufferpool.sort(key=lambda x: -x.accessed)
 
-    def retrieve_page(self, column:int, is_tail:bool, page_number:int) -> Page|None:
+    def swap_page(self, page: Page, column:int, is_tail:bool, page_number:int) -> None:
+        """
+        Swaps the page with given (column, is_tail, page_number) for the passed page argument.
+        Used for updating an existing page with a consolidated page after merge operation.
+        """
+        # code for substituting page
+        # code for checking if the page is in the bufferpool, because that would also need to be updated
+
+
+    def retrieve_page(self, column:int, is_tail:bool, page_number:int) -> Page | None:
         """
         Returns the desired page, if it is in the bufferpool it will be returned directly, otherwise it will be loaded into the bufferpool, then it will be returned.
         """
@@ -122,7 +131,7 @@ class FileManager:
     def __init__(self, table_name:str, database_name:Path):
         self.database_name = database_name
         self.table_name:str = table_name
-    
+
     def file_to_page(self, column:int, is_tail:bool, page_number:int) -> PageWrapper|None:
         """
         Reads a previously saved page from disk, returns the PageWrapper for the page or None if the page could not be found.

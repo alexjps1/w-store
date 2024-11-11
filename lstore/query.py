@@ -95,6 +95,7 @@ class Query:
         #     # print("update failed")
         #     return False
         # append new tail record with *columns, and indirection to other tail record's RID and set base record's indirection to new tail's RID
+        # increment the update transaction counter for the corresponding page directory (to decide when to merge)
         return self.table.append_tail_record(rid, columns)
 
 

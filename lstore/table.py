@@ -1,12 +1,13 @@
+from lstore import page_directory
 from lstore.index import Index
 from lstore.placeholder_index import DumbIndex
 from lstore.page_directory import PageDirectory
 from time import time_ns
 from lstore.page import Page
-from typing import List, Literal
+from typing import List, Literal, Tuple
 from pathlib import Path
-from lstore.config import RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN, NUM_METADATA_COLUMNS, RID_TOMBSTONE_VALUE, CUMULATIVE_TAIL_RECORDS
-from lstore.config import schema_AND, schema_SUBTRACT, bytearray_to_int, int_to_bytearray, rid_to_coords, coords_to_rid, schema_to_bytearray, bytearray_to_schema
+from lstore.config import *
+import copy
 
 # graphing
 from lstore.config import FIXED_PARTIAL_RECORD_SIZE, PAGE_SIZE, INDEX_USE_BPLUS_TREE, OVERRIDE_WITH_DUMB_INDEX, INDEX_BPLUS_TREE_MAX_DEGREE
@@ -62,7 +63,7 @@ class Table:
         self.current_base_page_number:int = 0 # index of the current base pages that are not full
         self.current_tail_page_number:int = -1 # index of the current tail pages that are not full, start at -1 since we do not start with any tail pages allocated
         # add metadata columns
-        metadata_cols = [RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN]
+        metadata_cols = [RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, CREATED_TIME_COLUMN, UPDATED_TIME_COLUMN]
         self.page_directory = PageDirectory(name, database_name)
         for col in metadata_cols:
             self.page_directory.insert_page(Page(self.page_size, self.record_size),
@@ -81,6 +82,10 @@ class Table:
             self.index = Index(self, use_bplus=self.use_bplus, degree=self.bplus_degree)
         else:
             self.index = DumbIndex(self)
+
+        # attributes for merge algorithm
+        self.merge_set: set = set()
+        self.update_counter: int = 0
 
     def insert_record_into_pages(self, columns:list[int]) -> bool:
         """
@@ -156,6 +161,12 @@ class Table:
         # set base record's indirection to new tail's RID
         _, page_num, offset = rid_to_coords(base_RID)
         base_page = self.page_directory.retrieve_page(INDIRECTION_COLUMN, False, page_num)
+
+        # mark page info (its page num and col num) for merging since we've just updated it
+        # sidenote: the column numbers here are relative to data columns, i.e. 0 is the first data column
+        for col_num in (num for num, col_val in enumerate(columns) if col_val is not None):
+            self.__add_to_merge_set((page_num, col_num))
+
         assert base_page is not None
         base_page.overwrite_direct(int_to_bytearray(new_tail_rid, self.record_size), offset)
         # print("new tail")
@@ -186,9 +197,9 @@ class Table:
         # write RID
         rid_page.write_direct(int_to_bytearray(RID, self.record_size))
         # the rid page number is needed for RID generation, so it is redundant to include writing the rid in the for loop
-        for i, col in enumerate(write_cols):
-            page = self.get_writable_page(col, is_tail)
-            page.write_direct(write_vals[i])
+        for col_num, val_at_col in zip(write_cols, write_vals):
+            page = self.get_writable_page(col_num, is_tail)
+            page.write_direct(val_at_col)
 
         # write data columns
         for i, col in enumerate(columns):
@@ -438,6 +449,130 @@ class Table:
             value = self.get_partial_record(base_RID, i + NUM_METADATA_COLUMNS)
             self.index.remove_record_from_index(i, value, base_RID)
 
+    ### Methods for merging ###
+
+    def __increment_update_counter(self):
+        """
+        Increment the update counter by one.
+        Later on, mutex lock functionality can be added here if needed.
+        """
+        # while self.update_counter_lock:
+        #    pass
+        # self.update_counter_lock = True
+        self.update_counter += 1
+        # self.update_counter_lock = False
+
+    def __empty_merge_set(self) -> set:
+        """
+        Empty the merge set, returning a copy of it.
+        Later on, mutex lock functionality can be added here if needed.
+        """
+        copied_merge_set = self.merge_set.copy()
+        self.merge_set.clear()
+        return copied_merge_set
+
+    def __add_to_merge_set(self, page_col_tuple: Tuple[int, int]):
+        """
+        Add a (page_num, col_num) tuple into the merge set, ignoring duplicates.
+        Also updates the update counter and calls merge if it's time to merge.
+        Thus, this should be called on *every* update.
+        Later on, mutex lock functoinality can be added here if needed.
+        """
+        self.__increment_update_counter()
+        self.merge_set.add(tuple)
+        if self.update_counter % NUM_UPDATES_TO_MERGE == 0:
+            self.__merge()
+
+
+    # type here
+
+
     def __merge(self):
+        """
+        Warning: Does not work with non-cumulative tail records at this time
+        """
+        try:
+            assert CUMULATIVE_TAIL_RECORDS
+        except AssertionError:
+            raise NotImplementedError("Backtracking through tail records for non-cumulative not yet implemented")
+
+        # operate on entire merge set copy
+        merge_set = self.__empty_merge_set()
+        for page_num, col_num in merge_set:
+            # get the base page and indirection page relevant to this merge
+            base_page = self.page_directory.retrieve_page(col_num, False, page_num)
+            indir_page = self.page_directory.retrieve_page(INDIRECTION_COLUMN, False, page_num)
+            if not base_page or not indir_page:
+                raise KeyError("Failed to fetch page in __merge()")
+
+            # create a "consolidated" base page which will contain updated values
+            cons_base_page = copy.copy(base_page)
+
+            # DEBUG assertion
+            assert base_page.num_records == PAGE_SIZE / FIXED_PARTIAL_RECORD_SIZE
+
+            # replace each record in this base page with its newest value
+            for offset in range(base_page.num_records):
+                tail_record_rid = bytearray_to_int(indir_page.retrieve_direct(offset))
+                if tail_record_rid == RID_TOMBSTONE_VALUE:
+                    # this record has been deleted, nothing to update
+                    continue
+                _, tail_page_num, tail_record_offset = rid_to_coords(tail_record_rid)
+
+                # DEBUG assertion
+                assert _ is True
+
+                # find the tail record and update the base record with its value
+                tail_page = self.page_directory.retrieve_page(col_num, True, tail_page_num)
+                if tail_page is None:
+                    raise KeyError("Base record is not deleted but its indirection column points to a non-existent tail page")
+                new_val = bytearray_to_int(tail_page.retrieve_direct(tail_record_offset))
+                cons_base_page.overwrite_direct(int_to_bytearray(new_val, FIXED_PARTIAL_RECORD_SIZE), offset)
+
+            # swap the cons base page with the original base page
+            self.page_directory.swap_page(cons_base_page, col_num, False, page_num)
+
+
+
+
+
+
+    """
+    def __merge(self):
+        # Merge committed tail pages.
         print("merge is happening")
-        pass
+        while True:
+            if len(self.merge_queue) != 0:
+
+                # batch tail page is a tuple of format page  #
+                batch_tail_page = self.merge_queue.popleft()
+                batch_cons_page = batch_tail_page.copy()
+
+                # NOTE backtracking thru tail records for non-cumulative not yet implemented
+                if not CUMULATIVE_TAIL_RECORDS:
+                    raise NotImplementedError("Backtracking through tail records for non-cumulative not yet implemented")
+
+                # loop through every tail page
+                for i in range(batch_tail_page.size):
+                    tail_page = batch_tail_page[i]
+
+                    # loop through each record within the tail page
+                    for j in range(tail_page.size):
+                        record = tail_page[j]
+
+                        rid = record.RID
+
+                        # add to hash map, update new consolidated base page
+                        if rid not in seen_updates:
+                            seen_updates[rid] = True
+                            batch_cons_page.update(rid, record)
+
+                        if len(seen_updates) == len(tail_page):
+                            # not compressing, just need to add new corresponding page to disk
+                            persist(batch_cons_page)
+                batch_base_page = batch_tail_page.get_base_page_ref()
+
+                self.page_directory.batch_base_page = batch_cons_page
+                # deallocate outdatedbase pages
+                del batch_base_page
+    """

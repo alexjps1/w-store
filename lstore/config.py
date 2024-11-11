@@ -78,8 +78,11 @@ RID_TOMBSTONE_VALUE = coords_to_rid(False, 2**PAGE_NUMBER_BITS-1, 2**OFFSET_BITS
 RID_COLUMN = 0
 INDIRECTION_COLUMN = 1
 SCHEMA_ENCODING_COLUMN = 2
-TIMESTAMP_COLUMN = 3
+TIMESTAMP_COLUMN= 3
 NUM_METADATA_COLUMNS = 4  # just the number of metadata columns
+
+# number of update transactions until merge is called (on filled head pages)
+NUM_UPDATES_TO_MERGE = 100
 
 def schema_AND(list_one:list[int], list_two:list[int]) -> list[int]:
     assert len(list_one) == len(list_two)
