@@ -1,4 +1,3 @@
-from lstore import page_directory
 from lstore.index import Index
 from lstore.placeholder_index import DumbIndex
 from lstore.page_directory import PageDirectory
@@ -10,7 +9,7 @@ from lstore.config import *
 import copy
 
 # graphing
-from lstore.config import FIXED_PARTIAL_RECORD_SIZE, PAGE_SIZE, INDEX_USE_BPLUS_TREE, OVERRIDE_WITH_DUMB_INDEX, INDEX_BPLUS_TREE_MAX_DEGREE
+# from lstore.config import FIXED_PARTIAL_RECORD_SIZE, PAGE_SIZE, INDEX_USE_BPLUS_TREE, OVERRIDE_WITH_DUMB_INDEX, INDEX_BPLUS_TREE_MAX_DEGREE
 
 
 def debug_print(debug_rid, table):
@@ -63,9 +62,9 @@ class Table:
         self.current_base_page_number:int = 0 # index of the current base pages that are not full
         self.current_tail_page_number:int = -1 # index of the current tail pages that are not full, start at -1 since we do not start with any tail pages allocated
         # add metadata columns
-        metadata_cols = [RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, CREATED_TIME_COLUMN, UPDATED_TIME_COLUMN]
+        self.metadata_cols = [RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, CREATED_TIME_COLUMN, UPDATED_TIME_COLUMN]
         self.page_directory = PageDirectory(name, database_name)
-        for col in metadata_cols:
+        for col in self.metadata_cols:
             self.page_directory.insert_page(Page(self.page_size, self.record_size),
                                             col,
                                             False,
@@ -192,7 +191,7 @@ class Table:
         timestamp = time_ns() - self.ref_time # relative time since table was created, though 64 bit ints can store the full time anyway
         # print(f"## WRITE:: RID{RID}, col{columns}")
         # write the metadata columns
-        write_cols:list[int] = [INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, TIMESTAMP_COLUMN]
+        write_cols:list[int] = self.metadata_cols[1:]
         write_vals:list[bytearray] = [int_to_bytearray(indirection, self.record_size), schema_to_bytearray(schema, self.record_size), int_to_bytearray(timestamp, self.record_size)]
         # write RID
         rid_page.write_direct(int_to_bytearray(RID, self.record_size))
@@ -483,10 +482,6 @@ class Table:
         if self.update_counter % NUM_UPDATES_TO_MERGE == 0:
             self.__merge()
 
-
-    # type here
-
-
     def __merge(self):
         """
         Warning: Does not work with non-cumulative tail records at this time
@@ -531,11 +526,6 @@ class Table:
 
             # swap the cons base page with the original base page
             self.page_directory.swap_page(cons_base_page, col_num, False, page_num)
-
-
-
-
-
 
     """
     def __merge(self):
