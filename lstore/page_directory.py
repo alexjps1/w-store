@@ -182,6 +182,29 @@ class FileManager:
         # write the binary file
         file_name.write_bytes(extra_data + page.get_page().data)
 
+    def delete_file(self, column: int, is_tail:bool, page_number:int):
+        """Removes file specified by column, is_tail, and page_number"""
+        if is_tail:
+            istail_str = "t"
+        else:
+            istail_str = "b"
+        file_name = Path(DATABASE_DIR, f"{self.database_name}", f"{self.table_name}", f"{istail_str}_col{column}_{page_number}.bin")
+        #Delete file if it exists
+        if file_name.exists():
+            file_name.unlink()
+
+    def delete_files(self):
+        """Removes all files within this table, as well as the corresponding directory"""
+        dir_name = Path(DATABASE_DIR, f"{self.database_name}", f"{self.table_name}")
+        #If the table exists, delete all of files within it
+        if dir_name.exists():
+            for file in dir_name.iterdir():
+                #Remove file if it is a file
+                if file.is_file():
+                    file.unlink()
+            #Delete the table
+            dir_name.rmdir()
+
 if __name__ == "__main__":
     """
     Test saving/loading
