@@ -81,8 +81,10 @@ class Database():
         Outputs: None
         """
         if name in self.tables.keys():
+            # remove table from disk
+            self.tables[name].page_directory.file_manager.delete_files()
+            # remove table from database
             del self.tables[name]
-            # TODO remove table from disk
 
     
     """
