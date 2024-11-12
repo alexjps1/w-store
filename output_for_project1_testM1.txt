@@ -1,0 +1,24 @@
+Output of testM1.py with our submitted code (commit: 1b43eacd397a8fa5d5842660aa0560eb148a7ba2):
+Checking exam M1 normal tester
+Insert finished
+
+
+Checking exam M1 extended tester
+Insert finished
+Select version  0 finished
+Aggregate version  0 finished
+
+------------------------------------
+Time taken:  1.11 seconds
+Total score for speed testers:  70
+--------------------------------------
+
+1
+[1, None, 1, None, None]
+[0] pass
+2
+0 [1, 1, 1, 1, 1] [1, 1, 1, 1, 1]
+1 [1, None, 1, None, None] [1, 1, 1, 1, 1]
+1
+2 [1, 2, 2, 2, 2] [2, 3, 3, 3, 3]
+Total score:  80
