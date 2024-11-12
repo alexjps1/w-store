@@ -86,10 +86,18 @@ class PageDirectory:
         # code for checking if the page is in the bufferpool, because that would also need to be updated
 
 
-    def retrieve_page(self, column:int, is_tail:bool, page_number:int) -> Page | None:
+    def retrieve_page(self, column:int, is_tail:bool, page_number:int, update_bufferpool:bool=True) -> Page | None:
         """
         Returns the desired page, if it is in the bufferpool it will be returned directly, otherwise it will be loaded into the bufferpool, then it will be returned.
         """
+        if not update_bufferpool:
+            # return the page from disk
+            pagewrapper = self.__load_page(column, is_tail, page_number)
+            if pagewrapper is not None:
+                return pagewrapper.get_page()
+            else:
+                return None
+            
         # check all items in bufferpool for target page
         for page in self.bufferpool:
             if page.is_tail == is_tail and page.column == column and page.page_number == page_number:

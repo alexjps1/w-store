@@ -478,7 +478,7 @@ class Table:
         Later on, mutex lock functoinality can be added here if needed.
         """
         self.__increment_update_counter()
-        self.merge_set.add(tuple)
+        self.merge_set.add(page_col_tuple)
         if self.update_counter % NUM_UPDATES_TO_MERGE == 0:
             self.__merge()
 
