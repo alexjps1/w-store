@@ -38,7 +38,16 @@ class Query:
     # Returns False if insert fails for whatever reason
     """
     def insert(self, *columns):
-        return self.table.insert_record_into_pages(columns)
+        primary_key_col = self.table.key
+        column_mask = [x==primary_key_col for x in range(len(columns))]
+        existing_primary_key = self.select(columns[primary_key_col], primary_key_col, column_mask)
+        if existing_primary_key is False:
+            # primary key does not exist
+            return self.table.insert_record_into_pages(columns)
+        else:
+            # print(f"existing primary key on insert")
+            # don't add existing primary keys
+            return False
 
 
     """
@@ -51,14 +60,7 @@ class Query:
     # Assume that select will never be called on a key that doesn't exist
     """
     def select(self, search_key:int, search_key_index:int, projected_columns_index:list[bool]) -> list[Record]|Literal[False]:
-        # print("select", projected_columns_index)
-        # find the Record IDs
-        rids = self.table.index.locate(search_key_index, search_key)
-        if rids is False:
-            return False
-        # get relevant columns for the records
-        records = [self.table.locate_record(rid, search_key, projected_columns_index, 0) for rid in rids]
-        return records
+        return self.select_version(search_key, search_key_index, projected_columns_index, 0)
 
 
     """
@@ -74,7 +76,7 @@ class Query:
     def select_version(self, search_key, search_key_index, projected_columns_index, relative_version):
         # find the Record IDs
         rids = self.table.index.locate(search_key_index, search_key)
-        if rids is False:
+        if rids is False or len(rids) == 0:
             return False
         # get relevant columns for the records
         records = [self.table.locate_record(rid, search_key, projected_columns_index, relative_version) for rid in rids]
@@ -89,13 +91,20 @@ class Query:
     def update(self, primary_key, *columns):
         # find the base record with primary_key
         rid = self.table.index.locate(0, primary_key)[0]
-        # try:
-        #     rid = self.table.index.locate(NUM_METADATA_COLUMNS, primary_key)[0]
-        # except IndexError:
-        #     # print("update failed")
-        #     return False
-        # append new tail record with *columns, and indirection to other tail record's RID and set base record's indirection to new tail's RID
-        # increment the update transaction counter for the corresponding page directory (to decide when to merge)
+        new_primary_key = columns[self.table.key]
+        # print(f"rids :: {rid}, new_primary_key :: {new_primary_key}")
+        if new_primary_key is not None:
+            # check this new primary key is not in the table
+            primary_key_col = self.table.key
+            column_mask = [x==primary_key_col for x in range(len(columns))]
+            existing_primary_key = self.select(new_primary_key, primary_key_col, column_mask)
+            if existing_primary_key is False:
+                pass
+            else:
+                # update failed because primary key already exists
+                # print("failed update")
+                return False
+        # primary key is not being updated, or it is and wasn't already in the table
         return self.table.append_tail_record(rid, columns)
 
 

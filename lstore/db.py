@@ -27,7 +27,11 @@ class Database():
         # print(full_path, path, self.database_path)
         if full_path.exists():
             # database already exists, but we will load the tables later
-            pass
+            # load all tables in database
+            for file in full_path.iterdir():
+                if file.is_dir():
+                    # print(f"loading table {file.stem}")
+                    self.get_table(str(file.stem))
         else:
             # make a new database
             full_path.mkdir(parents=True)
@@ -56,9 +60,15 @@ class Database():
             - key_index, TODO
         Outputs: table, the new table.
         """
+        # make a new table
         path = Path(DATABASE_DIR, f"{self.database_path}", f"{name}")
-        if not path.exists():
-            path.mkdir(parents=True)
+        if path.exists():
+            # existing table, clear data
+            # print("clearing existing table")
+            self.drop_table(name)
+        # dir is either not there, or we just deleted it
+        # print(f"making new table {name}")
+        path.mkdir(parents=True)
         # write table info
         table_info_file = Path(path, self.table_info_file)
         table_info_file.write_bytes(bytearray([num_columns, key_index]))
@@ -97,6 +107,10 @@ class Database():
         Inputs: name, the name of the table to return.
         Outputs: Table object with the given name OR False if table could not be found
         """
+        # if table is already loaded, return it
+        if name in self.tables.keys():
+            # print(f"table {name} already loaded")
+            return self.tables[name]
         # load table from disk
         path = Path(DATABASE_DIR, f"{self.database_path}", f"{name}")
         # table info file path
