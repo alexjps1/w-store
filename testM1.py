@@ -8,6 +8,7 @@ def speed_tester1():
     print("Checking exam M1 normal tester");
     global score
     db = Database()
+    db.open("CS-TEST")
     # Create a table  with 5 columns
     #   Student Id and 4 grades
     #   The first argument is name of the table
@@ -90,12 +91,14 @@ def speed_tester1():
             else:
                 pass
     score = score + 15
+    db.close()
 
 
 def speed_tester2():
     print("\n\nChecking exam M1 extended tester");
     global score
     db = Database()
+    db.open("CS-TEST")
     # Create a table  with 5 columns
     #   Student Id and 4 grades
     #   The first argument is name of the table
@@ -198,6 +201,7 @@ def speed_tester2():
 def correctness_tester():
     global score
     db = Database()
+    db.open("CS-TEST")
     grades_table = db.create_table('Grades', 5, 0)
 
     # create a query class for the grades table
@@ -260,6 +264,7 @@ def correctness_tester():
         and result[0].columns[4] == records[3][4]:
         score += 5
         print("[4] pass")
+    db.close()
 
 from timeit import default_timer as timer
 from decimal import Decimal
