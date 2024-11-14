@@ -140,6 +140,31 @@ class FileManager:
         self.database_name = database_name
         self.table_name:str = table_name
 
+    def get_page_number(self, is_tail:bool) -> int:
+        """
+        Finds the largest page number for a given page type on disk
+        """
+        if is_tail:
+            istail_str = "t"
+        else:
+            istail_str = "b"
+        # check from the table's directory within the database
+        file_name = Path(DATABASE_DIR, f"{self.database_name}", f"{self.table_name}")
+        # sort RID column, every record has an RID so this column is guarantied to be >= the size of any other column
+        all_pages = sorted(file_name.glob(f"{istail_str}_col0_*.bin"))
+        if len(all_pages) > 0:
+            # the largest page number is at the last element
+            _, _, i = str(all_pages[-1].stem).split('_')
+            # return the page number
+            return int(i)
+        elif is_tail:
+            # default tail page number
+            return -1
+        else:
+            # default base page number
+            return -1
+
+
     def file_to_page(self, column:int, is_tail:bool, page_number:int) -> PageWrapper|None:
         """
         Reads a previously saved page from disk, returns the PageWrapper for the page or None if the page could not be found.

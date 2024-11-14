@@ -17,8 +17,9 @@ class DumbIndex:
 
     def locate(self, column_num:int, value:int) -> list[int]:
         rids:list[int] = []
+        # print(f"-> locate::{value}, in::{column_num}, for page range 0,{self.table.current_base_page_number}")
         # check all pages
-        for n in range(self.table.num_columns):
+        for n in range(self.table.current_base_page_number + 1):
             page = self.table.page_directory.retrieve_page(column_num + NUM_METADATA_COLUMNS, False, n)
             if page is not None:
                 # check all offsets
@@ -41,7 +42,7 @@ class DumbIndex:
         """
         rids:list[int] = []
         # check all pages for start_val, values may not be sorted
-        for n in range(self.table.num_columns):
+        for n in range(self.table.current_base_page_number + 1):
             page = self.table.page_directory.retrieve_page(0 + NUM_METADATA_COLUMNS, False, n)
             if page is not None:
                 # check all offsets

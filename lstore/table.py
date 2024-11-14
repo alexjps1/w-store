@@ -59,23 +59,29 @@ class Table:
         self.use_dumbindex=use_dumbindex
         self.bplus_degree=bplus_degree
         self.ref_time = time_ns()
-        self.current_base_page_number:int = 0 # index of the current base pages that are not full
-        self.current_tail_page_number:int = -1 # index of the current tail pages that are not full, start at -1 since we do not start with any tail pages allocated
         # add metadata columns
         self.metadata_cols = [RID_COLUMN, INDIRECTION_COLUMN, SCHEMA_ENCODING_COLUMN, CREATED_TIME_COLUMN, UPDATED_TIME_COLUMN]
         self.page_directory = PageDirectory(name, database_name)
-        for col in self.metadata_cols:
-            self.page_directory.insert_page(Page(self.page_size, self.record_size),
-                                            col,
-                                            False,
-                                            self.current_base_page_number)
-
-        # add data columns
-        for i in range(num_columns):
-            self.page_directory.insert_page(Page(self.page_size, self.record_size),
-                                            NUM_METADATA_COLUMNS + i,
-                                            False,
-                                            self.current_base_page_number)
+        # get current base and tail page numbers
+        # index of the current base pages that are not full
+        self.current_base_page_number = self.page_directory.file_manager.get_page_number(False)
+        # index of the current tail pages that are not full, start at -1 since we do not start with any tail pages allocated
+        self.current_tail_page_number = self.page_directory.file_manager.get_page_number(True)
+        # print(f"current page #:: B:{self.current_base_page_number}, T:{self.current_tail_page_number}")
+        if self.current_base_page_number == -1:
+            # initialize a new empty table
+            self.current_base_page_number = 0
+            for col in self.metadata_cols:
+                self.page_directory.insert_page(Page(self.page_size, self.record_size),
+                                                col,
+                                                False,
+                                                self.current_base_page_number)
+            # add data columns
+            for i in range(num_columns):
+                self.page_directory.insert_page(Page(self.page_size, self.record_size),
+                                                NUM_METADATA_COLUMNS + i,
+                                                False,
+                                                self.current_base_page_number)
 
         if not self.use_dumbindex:
             self.index = Index(self, use_bplus=self.use_bplus, degree=self.bplus_degree)
@@ -163,8 +169,8 @@ class Table:
 
         # mark page info (its page num and col num) for merging since we've just updated it
         # sidenote: the column numbers here are relative to data columns, i.e. 0 is the first data column
-        for col_num in (num for num, col_val in enumerate(columns) if col_val is not None):
-            self.__add_to_merge_set((page_num, col_num))
+        # for col_num in (num for num, col_val in enumerate(columns) if col_val is not None):
+        #     self.__add_to_merge_set((page_num, col_num))
 
         assert base_page is not None
         base_page.overwrite_direct(int_to_bytearray(new_tail_rid, self.record_size), offset)
@@ -306,7 +312,6 @@ class Table:
                 for _ in range(version, 0):
                     # get the next tail record
                     # debug_print(tail_RID, self)
-                    tmp_tail_rid = tail_RID
                     tail_RID = self.get_partial_record(tail_RID, INDIRECTION_COLUMN)
                     if tail_RID == RID:
                         # if history stack is smaller then disiered result, give the base rid
