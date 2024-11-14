@@ -1,6 +1,7 @@
 from pathlib import Path
 from lstore.table import Table
 from lstore.config import DATABASE_DIR
+from typing import Literal
 
 class Database():
     """
@@ -26,12 +27,14 @@ class Database():
         self.database_path = Path(path)
         # print(full_path, path, self.database_path)
         if full_path.exists():
-            # database already exists, but we will load the tables later
             # load all tables in database
+            # print(f"loading database {path}")
             for file in full_path.iterdir():
                 if file.is_dir():
                     # print(f"loading table {file.stem}")
                     self.get_table(str(file.stem))
+                # print(f"finished loading table {file.stem}")
+            # print(f"finished loading database {path}")
         else:
             # make a new database
             full_path.mkdir(parents=True)
@@ -100,7 +103,7 @@ class Database():
     """
     # Returns table with the passed name
     """
-    def get_table(self, name:str) -> Table|bool:
+    def get_table(self, name:str) -> Table|Literal[False]:
         """
         Finds and returns the table with the given name.
 

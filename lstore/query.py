@@ -102,7 +102,7 @@ class Query:
                 pass
             else:
                 # update failed because primary key already exists
-                # print("failed update")
+                # print(f"Skipping DUPLICATE Tail for Base RID::{rid}")
                 return False
         # primary key is not being updated, or it is and wasn't already in the table
         return self.table.append_tail_record(rid, columns)
