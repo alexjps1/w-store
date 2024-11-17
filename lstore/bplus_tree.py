@@ -118,7 +118,7 @@ class LeafNode(Node):
             if entry.rid == rid:
                 entry.next_ver_key = next_ver_key
                 return entry.abs_ver
-
+        print(f"key::{key}, RID::{rid}, next_ver_key::{next_ver_key}")
         raise ValueError
 
     def remove_entry(self, key: int, rid: RID, abs_ver: int = 0) -> int | None:
@@ -239,6 +239,8 @@ class BPlusTree:
         """
         Return the RIDs of records with the specified key in their latest version.
         """
+        if self.root is None:
+            return []
         assert isinstance(self.root, Node)
         leaf = self._find_leaf(self.root, key)
         if key in leaf.keys:
@@ -250,6 +252,8 @@ class BPlusTree:
         """
         Return the RIDs associated with keys in the range [key_start, key_end].
         """
+        if self.root is None:
+            return []
         assert isinstance(self.root, Node)
         leaf = self._find_leaf(self.root, key_start)
         rids = []
@@ -286,6 +290,7 @@ class BPlusTree:
                     break # stop searching for next entry in curr leaf
 
             if not curr_entry:
+                print(curr_entry)
                 raise ValueError("Invalid next version key") # rid not associated with value, next pointer is bad
 
             if curr_entry and curr_entry.next_ver_key is not None:
@@ -300,6 +305,8 @@ class BPlusTree:
         """
         Return the RIDs corresponding to records which had the given key at the given relative version.
         """
+        if self.root is None:
+            return []
         assert isinstance(self.root, Node)
         leaf = self._find_leaf(self.root, key)
         assert rel_ver <= 0

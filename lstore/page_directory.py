@@ -84,6 +84,12 @@ class PageDirectory:
         """
         # code for substituting page
         # code for checking if the page is in the bufferpool, because that would also need to be updated
+        # NOTE: The bufferpool will be static, as the page_dir is blocked during this process
+        is_buffered = any(buffered_page.column==column and buffered_page.is_tail==is_tail and buffered_page.page_number==page_number for buffered_page in self.bufferpool)
+        #If in bufferpool
+        if is_buffered==True:
+            self.bufferpool = list(map(lambda x: page if x.column==column and x.is_tail==is_tail and x.page_number==page_number else x, self.bufferpool))
+        self.__save_page(PageWrapper(page, column, is_tail, page_number))
 
 
     def retrieve_page(self, column:int, is_tail:bool, page_number:int, update_bufferpool:bool=True) -> Page | None:

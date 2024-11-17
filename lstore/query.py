@@ -75,7 +75,7 @@ class Query:
     """
     def select_version(self, search_key, search_key_index, projected_columns_index, relative_version):
         # find the Record IDs
-        rids = self.table.index.locate(search_key_index, search_key)
+        rids = self.table.index.locate_version(search_key_index, search_key, relative_version)
         if rids is False or len(rids) == 0:
             return False
         # get relevant columns for the records
