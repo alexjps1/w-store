@@ -492,7 +492,7 @@ class Table:
         if self.update_counter % NUM_UPDATES_TO_MERGE == 0:
             self.__merge()
 
-    def __merge(self):
+    def __old_merge(self):
         """
         Warning: Does not work with non-cumulative tail records at this time
         """
@@ -536,6 +536,47 @@ class Table:
 
             # swap the cons base page with the original base page
             self.page_directory.swap_page(cons_base_page, col_num, False, page_num)
+
+    def __merge(self):
+        try:
+            assert CUMULATIVE_TAIL_RECORDS
+        except AssertionError:
+            raise NotImplementedError("Backtracking through tail records for non-cumulative not yet implemented")
+        merge_set_copy = self.__empty_merge_set()
+
+
+        #Update each base record in-order
+        #For each value column
+        for col_number in range(len(self.metadata_cols), self.num_columns):
+            #if col_number not in merge_set: break
+            if not any( col_number==tup[1] for tup in merge_set_copy ):
+                break
+            new_index = Index(True)                 #New index for the column
+            #for each base page
+            for page_num in range(self.current_base_page_number):
+                base_page = self.page_directory.retrieve_page(col_number, False, page_num)
+                indir_page = self.page_directory.retrieve_page(INDIRECTION_COLUMN, False, page_num)
+                updated_page = self.page_directory.retrieve_page(UPDATED_TIME_COLUMN, False, page_num)
+                if not base_page or not indir_page:
+                    raise KeyError("Failed to fetch page in __merge()")
+                base_page_copy = copy.copy(base_page)
+                #For each record in base_page copy
+                for offset in range(base_page_copy.num_records):
+                    #Set base_record equal to latest version if not tombstone (update updated_at)
+                    tail_record_rid = bytearray_to_int(indir_page.retrieve_direct(offset))
+                    if tail_record_rid == RID_TOMBSTONE_VALUE:
+                        continue
+                    _, tail_page_num, tail_record_offset = rid_to_coords(tail_record_rid)
+                    # find the tail record and update the base record with its value
+                    tail_page = self.page_directory.retrieve_page(col_number, True, tail_page_num)
+                    if tail_page is None:
+                        raise KeyError("Base record is not deleted but its indirection column points to a non-existent tail page")
+                    new_val = bytearray_to_int(tail_page.retrieve_direct(tail_record_offset))
+                    base_page_copy.overwrite_direct(int_to_bytearray(new_val, FIXED_PARTIAL_RECORD_SIZE), offset)
+                    updated_page.overwrite_direct(int_to_bytearray(time_ns()-self.ref_time, FIXED_PARTIAL_RECORD_SIZE), offset)     #Change updated at
+                #Swap base page copy with original base page //TODO: MUTEX LOCKS!
+                self.page_directory.swap_page(base_page_copy, col_number, False, page_num)
+
 
     """
     def __merge(self):
