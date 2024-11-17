@@ -161,7 +161,7 @@ class Table:
         new_tail_rid = coords_to_rid(True, page_num, offset)
         # print(f"tail RID{new_tail_rid} page{page} page#{page_num} offset{offset}")
         # write metadata and data columns
-        success_state = self.write_new_record(new_tail_rid, old_tail_rid, schema_encoding, columns, page, True)
+        success_state = self.write_new_record(new_tail_rid, old_tail_rid, schema_encoding, columns, page, True, base_RID)
 
         # set base record's indirection to new tail's RID
         _, page_num, offset = rid_to_coords(base_RID)
@@ -178,7 +178,7 @@ class Table:
         # debug_print(new_tail_rid, self)
         return success_state
 
-    def write_new_record(self, RID:int, indirection:int, schema:list[int], columns:list[int], rid_page:Page, is_tail:bool) -> bool:
+    def write_new_record(self, RID:int, indirection:int, schema:list[int], columns:list[int], rid_page:Page, is_tail:bool, base_rid:int=0) -> bool:
         """
         Helper function for writing a new record
 
@@ -210,11 +210,16 @@ class Table:
         for i, col in enumerate(columns):
             page = self.get_writable_page(i + NUM_METADATA_COLUMNS, is_tail)
             if schema[i] or not is_tail:
-                # write data to page
-                page.write_direct(int_to_bytearray(col, self.record_size))
                 if not is_tail:
                     # update index with RID, i, and col
                     self.index.add_record_to_index(i, col, RID)
+                elif not self.use_dumbindex:
+                    # get old data
+                    old_value = self.get_partial_record(indirection, i + NUM_METADATA_COLUMNS)
+                    # update index entry with updated values
+                    self.index.update_record_in_index(i, old_value, base_rid, col)
+                # write data to page
+                page.write_direct(int_to_bytearray(col, self.record_size))
             else:
                 # write a None value, it should be skipped by the schema encoding when read
                 page.write_direct(int_to_bytearray(0, self.record_size))

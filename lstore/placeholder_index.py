@@ -29,6 +29,8 @@ class DumbIndex:
                         rids.append(self.get_rid(n, i))
         return rids
             
+    def locate_version(self, col_num:int, value:int, rel_ver:int):
+        return self.locate(col_num, value)
 
     def locate_range(self, start_key:int, end_key:int, col_num: int) -> list[int]:
         """
@@ -54,14 +56,17 @@ class DumbIndex:
         # return values only if both start and end were found
         return sorted(rids)
 
-    def add_record_to_index(self, col_num: int, val: int, rid: int) -> None:
+    def add_record_to_index(self, *args) -> None:
         pass
 
-    def remove_record_from_index(self, col_num: int, val: int, rid: int) -> None:
+    def remove_record_from_index(self, *args) -> None:
         pass
 
-    def create_index(self, column_num: int) -> None:
+    def create_index(self, *args) -> None:
         pass
 
-    def drop_index(self, column_num: int) -> None:
+    def drop_index(self, *args) -> None:
+        pass
+
+    def update_record_in_index(self, *args) -> None:
         pass

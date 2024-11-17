@@ -8,7 +8,7 @@ def speed_tester1():
     print("Checking exam M1 normal tester");
     global score
     db = Database()
-    db.open("CS-TEST")
+    db.open("CS-TEST-1")
     # Create a table  with 5 columns
     #   Student Id and 4 grades
     #   The first argument is name of the table
@@ -98,7 +98,7 @@ def speed_tester2():
     print("\n\nChecking exam M1 extended tester");
     global score
     db = Database()
-    db.open("CS-TEST")
+    db.open("CS-TEST-2")
     # Create a table  with 5 columns
     #   Student Id and 4 grades
     #   The first argument is name of the table
@@ -147,6 +147,7 @@ def speed_tester2():
     
     
     all_updates = []
+    n = 0
     keys = sorted(list(records.keys()))
     for i in range(number_of_updates):
         all_updates.append({})
@@ -159,7 +160,9 @@ def speed_tester2():
                 updated_columns[j] = value
                 # update our test directory
                 all_updates[i][key][j] = value
+            n += 1
             query.update(key, *updated_columns)
+    print(f"n :: {n}")
     
     try:
         # Check records that were persisted in part 1
@@ -201,7 +204,7 @@ def speed_tester2():
 def correctness_tester():
     global score
     db = Database()
-    db.open("CS-TEST")
+    db.open("CS-TEST-C")
     grades_table = db.create_table('Grades', 5, 0)
 
     # create a query class for the grades table

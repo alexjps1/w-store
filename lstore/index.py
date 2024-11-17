@@ -11,7 +11,7 @@ However, might use B-Tree later for potential performance benefits on range quer
 from typing import NewType, List, Union
 from lstore.bplus_tree import BPlusTree
 import lstore.config as config
-from bplus_tree import RID
+from lstore.bplus_tree import RID
 
 class Index:
 
