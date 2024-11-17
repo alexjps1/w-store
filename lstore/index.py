@@ -11,10 +11,7 @@ However, might use B-Tree later for potential performance benefits on range quer
 from typing import NewType, List, Union
 from lstore.bplus_tree import BPlusTree
 import lstore.config as config
-
-# NOTE: Assuming RIDs are integers for typing purposes
-RID = NewType('RID', int)
-
+from bplus_tree import RID
 
 class Index:
 
@@ -65,6 +62,22 @@ class Index:
             result.extend(extension if extension is not None else [])
         return result
 
+    def locate_version(self, col_num: int, value: int, rel_ver: int):
+        """
+        Returns the RIDs of all records with the given value in the specified column and version
+        """
+        if self.indices[col_num] is None:
+            if config.INDEX_USE_DUMB_INDEX:
+                raise NotImplementedError("The desired column is not indexed and using dumb index to locate is not yet implemented.")
+            else:
+                raise ValueError("The desired column is not indexed and the configuration does not allow using dumb index to locate records.")
+        result = []
+        if self.tree_index:
+            # run a point query on the tree
+            return self.indices[col_num].version_query(value, rel_ver)
+        raise NotImplementedError("Tried to locate version in dict index, not compatible with versioning at this time.")
+
+
     def add_record_to_index(self, col_num: int, val: int, rid: RID) -> None:
         """
         Add the RID to the appropriate index for the specified column and value.
@@ -76,6 +89,7 @@ class Index:
         if self.tree_index:
             self.indices[col_num].insert(val, rid)
             return
+        raise NotImplementedError("Tried to insert to dict index, not compatible with versioning at this time.")
         assert isinstance(self.indices[col_num], dict)
         if self.indices[col_num].get(val) is None:
             # new entry for this value
@@ -83,6 +97,16 @@ class Index:
         else:
             # other records also have this value, add to the list
             self.indices[col_num][val].append(rid)
+
+    def update_record_in_index(self, col_num: int, curr_val: int, rid: RID, new_val: int):
+        """
+        Add a new entry to the index which references the previous value of the record.
+        """
+        if self.tree_index:
+            assert isinstance(self.indices[col_num], BPlusTree)
+            self.indices[col_num].update(new_val, curr_val, rid)
+            return
+        raise NotImplementedError("Tried to update dict index, not compatible with versioning at this time.")
 
     def remove_record_from_index(self, col_num: int, val: int, rid: RID) -> None:
         """
@@ -96,6 +120,7 @@ class Index:
             if self.indices[col_num].delete(val, rid) is False:
                 raise ValueError("The key to delete is not in the index.")
             return
+        raise NotImplementedError("Tried to delete from dict index, not compatible with versioning at this time.")
         if self.indices[col_num].get(val) is None:
             raise ValueError("The key to delete is not in the index.")
         self.indices[col_num][val].remove(rid)

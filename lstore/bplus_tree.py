@@ -2,11 +2,21 @@
 B Plus Tree
 """
 
-from typing import NewType, List, Union
+from sys import base_prefix
+from typing import NewType, List, Union, Tuple
 
 # NOTE: Assuming RIDs are integers for typing purposes
 RID = NewType('RID', int)
 
+class TreeEntry:
+    def __init__(self, rid: RID, abs_ver=0, prev_ver_key=None, next_ver_key=None):
+        self.rid = rid
+        self.prev_ver_key = prev_ver_key
+        self.next_ver_key = next_ver_key
+        self.abs_ver = abs_ver
+
+    def set_next_ver_key(self, next_ver_key):
+        self.next_ver_key = next_ver_key
 
 class Node:
 
@@ -53,7 +63,7 @@ class LeafNode(Node):
         super().__init__(is_root=is_root)
         self.next: Union[LeafNode, None] = None
         self.prev: Union[LeafNode, None] = None
-        self.rid_lists: List[List[RID]] = []
+        self.tree_entry_lists: List[List[TreeEntry]] = []
 
     def __str__(self, indent_level: int = 0) -> str:
         """
@@ -62,23 +72,23 @@ class LeafNode(Node):
         str_rep = f"{'  ' * indent_level}Leaf ({self._pretty_print_keys()})\n"
         for i, key in enumerate(self.keys):
             str_rep += f"{'  ' * (indent_level + 1)}Key {self.keys[i]}\n"
-            for j, rid in enumerate(self.rid_lists[i]):
-                str_rep += f"{'  ' * (indent_level + 2)}RID {rid}\n"
+            for j, entry in enumerate(self.tree_entry_lists[i]):
+                str_rep += f"{'  ' * (indent_level + 2)}RID {entry.rid}\n"
         return str_rep
 
 
-    def insert_rid(self, key: int, rid: RID) -> None:
+    def insert_entry(self, key: int, rid: RID, abs_ver=0, prev_ver_key=None) -> None:
         """
-        Insert a key, value pair into the leaf node.
-        If the key already exists, the RID is added to the list of RIDs for that key.
+        Insert a new entry (rid, abs_ver, prev_ver_val, next_ver_val) into the leaf node.
+        If the key already exists, the entry is added to the list corresponding to that key.
         If not, a new key is inserted in sorted order.
 
         Warning: This allows the key to go over the max degree.
         Splits should be handled by the tree's insert func.
         """
         if key in self.keys:
-            # add RID to the existing list for that key
-            self.rid_lists[self.keys.index(key)].append(rid)
+            # add entry to the existing list for that key
+            self.tree_entry_lists[self.keys.index(key)].append(TreeEntry(rid, abs_ver, prev_ver_key))
             return
 
         # find the right place, maintaining sorted order
@@ -86,7 +96,61 @@ class LeafNode(Node):
         while i < len(self.keys) and key > self.keys[i]:
             i += 1
         self.keys.insert(i, key)
-        self.rid_lists.insert(i, [rid])
+        self.tree_entry_lists.insert(i, [TreeEntry(rid)])
+
+    def update_entry_next_ver_key(self, key, rid, next_ver_key) -> int:
+        """
+        Update an entry next_val to a new pointer.
+        Return absolute version of the updated entry.
+        """
+
+        if key not in self.keys:
+            return -1 # bad key lookup
+
+        for entry in self.tree_entry_lists[self.keys.index(key)]:
+            if entry.rid == rid:
+                entry.next_ver_key = next_ver_key
+                return entry.abs_ver
+
+        raise ValueError
+
+    def remove_entry(self, key: int, rid: RID, abs_ver: int = 0) -> int | None:
+        """
+        Remove the entry with the given key, rid, and absolute version.
+        Return the entry's prev_ver_key if it exists,
+        or None if that entry represents the first version of its record.
+        """
+        entry_list = self.tree_entry_lists[self.keys.index(key)]
+        for i, entry in enumerate(entry_list):
+            # make sure rid matches, and ensure the absolute version matches
+            if entry.rid == rid and entry.abs_ver == abs_ver:
+                old_entry = entry_list.pop(i)
+                return old_entry.prev_ver_key
+
+    def remove_latest_entry(self, key: int, rid: RID) -> Tuple[Union[int, None], int]:
+        """
+        Remove the entry with the given key and rid whose next_ver_key is None (i.e. newest such entry).
+        Return a (prev_ver_key, abs_ver) tuple, which enables finding its predecessor.
+        """
+        entry_list = self.tree_entry_lists[self.keys.index(key)]
+        for i, entry in enumerate(entry_list):
+            if entry.rid == rid and entry.next_ver_key is None:
+                old_entry = entry_list.pop(i)
+                return old_entry.prev_ver_key, old_entry.abs_ver
+        raise ValueError("There was no latest entry to delete. Possibly mistaken call to delete() in BPlusTree.")
+
+
+    def get_raw_latest_rids(self, key) -> List[RID]:
+        """
+        Get the raw RIDs with no next pointer associated with versions,
+        i.e. the RID is up to date.
+        """
+        rids: List[RID] = []
+        for tree_entry in self.tree_entry_lists[self.keys.index(key)]:
+            if tree_entry.next_ver_key is None:
+                rids.append(tree_entry.rid)
+
+        return rids
 
 class BPlusTree:
 
@@ -107,7 +171,7 @@ class BPlusTree:
 
     # public methods
 
-    def insert(self, key: int, rid: RID) -> None:
+    def insert(self, key: int, rid: RID, abs_ver=0, prev_ver_key=None) -> None:
         """
         Insert a key, RID pair in the tree.
         If the key already exists, the RID is added to the list of RIDs for that key.
@@ -116,56 +180,62 @@ class BPlusTree:
         if self.root is None:
             # empty tree, create and insert into the root
             self.root = LeafNode(is_root=True)
-            self.root.insert_rid(key, rid)
+            self.root.insert_entry(key, rid)
             return
 
         # find leaf and insert
         leaf = self._find_leaf(self.root, key)
-        leaf.insert_rid(key, rid)
+        leaf.insert_entry(key, rid, abs_ver, prev_ver_key)
+
         if len(leaf.keys) > self.max_degree - 1:
             self._split_leaf(leaf)
 
-    def delete(self, key, rid):
+    def update(self, new_ver_key: int, prev_ver_key: int, rid: RID) -> None:
+        assert isinstance(self.root, Node)
+        leaf = self._find_leaf(self.root, prev_ver_key)
+
+        # update previous record with new pointer to current value
+        prev_abs_abs = leaf.update_entry_next_ver_key(prev_ver_key, rid, new_ver_key)
+
+        # insert new record
+        self.insert(new_ver_key, rid, prev_abs_abs + 1, prev_ver_key)
+
+    def delete(self, key: int, rid: RID):
         """
-        Delete an RID from a key in the B+ tree (or remove the key entirely).
+        Delete an entry and its predecessors from the B+ Tree (or remove the key entirely).
         Warning: This method does not handle rebalancing the tree.
         Warning: Passing None unique_val deletes all RIDs associated with the passed key
         """
         assert self.root is not None
 
+        # find base leaf - delete from this leaf, save value of prev_pointer, backtrack and remove entries
         deletion_leaf = self._find_leaf(self.root, key)
         assert isinstance(deletion_leaf, LeafNode)
 
         if not deletion_leaf or key not in deletion_leaf.keys:
-           return False # key doesn't exist
+           return False # key doesn't exist, return False to indicate an invalid delete query
 
-        key_index = deletion_leaf.keys.index(key)
+        # now perform the deletion of the entry and its preceding entries (versions) from the index
+        prev_ver_key, abs_ver = deletion_leaf.remove_latest_entry(key, rid)
+        # NOTE this method should confirm that there is exactly one entry with this particular RID whose next_ver_key is None
+        # it should then delete that entry from the tree_entries_list and return prev_ver_key and abs_ver of that entry
 
-        if rid is None:
-            # delete the key entirely
-            deletion_leaf.keys.pop(key_index)
-            deletion_leaf.rid_lists.pop(key_index)
-            return True
-        elif rid in deletion_leaf.rid_lists[key_index]:
-            # delete only the rid
-            deletion_leaf.rid_lists[key_index].remove(rid)
-        else:
-            return False # unique identifier doesn't exist under this key
+        while (prev_ver_key is not None):
+            abs_ver -= 1
+            assert abs_ver < 0
+            deletion_leaf = self._find_leaf(self.root, prev_ver_key)
+            prev_ver_key = deletion_leaf.remove_entry(prev_ver_key, rid, abs_ver)
 
-        # delete the key entirely if that was the last rid in it
-        if len(deletion_leaf.rid_lists[key_index]) == 0:
-           deletion_leaf.keys.pop(key_index)
-           deletion_leaf.rid_lists.pop(key_index)
         return True
 
     def point_query(self, key: int) -> List[RID]:
         """
-        Return the RIDs associated with the key.
+        Return the RIDs of records with the specified key in their latest version.
         """
         assert isinstance(self.root, Node)
         leaf = self._find_leaf(self.root, key)
         if key in leaf.keys:
-            return leaf.rid_lists[leaf.keys.index(key)]
+            return leaf.get_raw_latest_rids(key)
         # key not found
         return []
 
@@ -177,14 +247,64 @@ class BPlusTree:
         leaf = self._find_leaf(self.root, key_start)
         rids = []
         while leaf is not None:
-            for i, k in enumerate(leaf.keys):
-                if key_start <= k <= key_end:
-                    rids.extend(leaf.rid_lists[i])
+            for curr_key in leaf.keys:
+                if key_start <= curr_key <= key_end:
+                    rids.extend(leaf.get_raw_latest_rids(curr_key))
             if leaf.keys[-1] >= key_end:
                 break
             leaf = leaf.next
         return rids
 
+    def __get_relative_entry_version(self, base_entry: TreeEntry) -> int:
+        assert isinstance(self.root, Node)
+
+        # extract value and search for RID
+        base_rid = base_entry.rid
+        next_key = base_entry.next_ver_key
+        abs_ver = base_entry.abs_ver
+        rel_ver = 0
+
+        while (next_key is not None):
+            abs_ver += 1
+            next_leaf = self._find_leaf(self.root, next_key)
+            curr_entry = None
+
+            if not (next_leaf and next_key in next_leaf.keys):
+                raise ValueError("Invalid next version key.")
+
+            for entry in next_leaf.tree_entry_lists[next_leaf.keys.index(next_key)]:
+                if entry.rid == base_rid and entry.abs_ver == abs_ver:
+                    curr_entry = entry # found entry associated with base RID at key
+                                        # i.e. confirmed valid next_val pointer
+                    break # stop searching for next entry in curr leaf
+
+            if not curr_entry:
+                raise ValueError("Invalid next version key") # rid not associated with value, next pointer is bad
+
+            if curr_entry and curr_entry.next_ver_key is not None:
+                next_key = curr_entry.next_ver_key # iterate to determine next hops
+                rel_ver -= 1
+
+        return rel_ver
+
+
+
+    def version_query(self, key: int, rel_ver: int) -> List[RID]:
+        """
+        Return the RIDs corresponding to records which had the given key at the given relative version.
+        """
+        assert isinstance(self.root, Node)
+        leaf = self._find_leaf(self.root, key)
+        assert rel_ver <= 0
+
+        rids = []
+        if key in leaf.keys:
+            for entry in leaf.tree_entry_lists[leaf.keys.index(key)]:
+                if self.__get_relative_entry_version(entry) == rel_ver:
+                    rids.append(entry.rid)
+
+        # key not found
+        return rids
 
     # private methods
 
@@ -213,11 +333,11 @@ class BPlusTree:
 
         # new leaf gets second, smaller half of keys and vals
         new_leaf.keys = old_leaf.keys[midpoint:]
-        new_leaf.rid_lists = old_leaf.rid_lists[midpoint:]
+        new_leaf.tree_entry_lists = old_leaf.tree_entry_lists[midpoint:]
 
         # old leaf gets first, bigger half of keys and vals
         old_leaf.keys = old_leaf.keys[:midpoint]
-        old_leaf.rid_lists = old_leaf.rid_lists[:midpoint]
+        old_leaf.tree_entry_lists = old_leaf.tree_entry_lists[:midpoint]
 
         # Update the linked list pointers
         new_leaf.next = old_leaf.next
