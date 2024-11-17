@@ -1,6 +1,7 @@
 from pathlib import Path
 from lstore.table import Table
-from lstore.config import DATABASE_DIR
+from lstore.config import DATABASE_DIR, NUM_METADATA_COLUMNS, FIXED_PARTIAL_RECORD_SIZE, RID_COLUMN, OVERRIDE_WITH_DUMB_INDEX
+from lstore.config import bytearray_to_int
 from typing import Literal
 
 class Database():
@@ -123,9 +124,72 @@ class Database():
             num_col, key_index = list(table_info_file.read_bytes())
             # build table object
             table = Table(name, self.database_path, num_col, key_index)
+            # regenerate the index
+            if not OVERRIDE_WITH_DUMB_INDEX: self.generate_index_on_loaded_table(path, table)
             # update table dictionary
             self.tables[name] = table
             # return the table
             return table
         else:
             return False
+
+    def generate_index_on_loaded_table(self, path:Path, table:Table) -> None:
+        """
+        Generates a new index by reading saved page files. Used to generate a new index when a table is loaded, but not when a new table is made.
+        """
+        all_base_pages = sorted(path.glob("b_col*_*.bin"))
+        last_values = {}
+        # generate an index on all base records in the data columns
+        for page in all_base_pages:
+            # generate an index on all data columns
+            _, column_str, page_num = str(page.stem).split('_')
+            column_num = int(column_str[3:])
+            # ignore all metadata columns
+            if column_num >= NUM_METADATA_COLUMNS:
+                # is a data column, generate an index
+                # read data page
+                page_data = bytearray(page.read_bytes())
+                num_records = bytearray_to_int(page_data[:FIXED_PARTIAL_RECORD_SIZE])
+                data = page_data[FIXED_PARTIAL_RECORD_SIZE:]
+                # read rid page
+                rid_page = Path(path, f"b_col{RID_COLUMN}_{page_num}.bin")
+                rid_page_data = bytearray(rid_page.read_bytes())
+                rid_data = rid_page_data[FIXED_PARTIAL_RECORD_SIZE:]
+                # build an index entry for all records in page
+                for offset in range(num_records):
+                    byte_offset = offset * FIXED_PARTIAL_RECORD_SIZE
+                    # get rid
+                    rid = bytearray_to_int(rid_data[byte_offset:byte_offset + FIXED_PARTIAL_RECORD_SIZE])
+                    # get column value
+                    value = bytearray_to_int(data[byte_offset:byte_offset + FIXED_PARTIAL_RECORD_SIZE])
+                    # save for tail record indexes
+                    last_values[rid] = value
+                    # add index entry
+                    table.index.add_record_to_index(column_num, value, rid)
+
+        all_tail_pages = sorted(path.glob("t_col*_*.bin"))
+        # generate an index on all tail records in the data columns
+        for page in all_tail_pages:
+            # generate an index on all data columns
+            _, column_str, page_num = str(page.stem).split('_')
+            column_num = int(column_str[3:])
+            # ignore all metadata columns
+            if column_num >= NUM_METADATA_COLUMNS:
+                # is a data column, generate an index
+                # read data page
+                page_data = bytearray(page.read_bytes())
+                num_records = bytearray_to_int(page_data[:FIXED_PARTIAL_RECORD_SIZE])
+                data = page_data[FIXED_PARTIAL_RECORD_SIZE:]
+                # read rid page
+                base_rid_page = Path(path, f"b_col{RID_COLUMN}_{page_num}.bin")
+                base_rid_page_data = bytearray(base_rid_page.read_bytes())
+                base_rid_data = base_rid_page_data[FIXED_PARTIAL_RECORD_SIZE:]
+                # build an index entry for all records in page
+                for offset in range(num_records):
+                    byte_offset = offset * FIXED_PARTIAL_RECORD_SIZE
+                    # get rid
+                    base_rid = bytearray_to_int(base_rid_data[byte_offset:byte_offset + FIXED_PARTIAL_RECORD_SIZE])
+                    # get column value
+                    value = bytearray_to_int(data[byte_offset:byte_offset + FIXED_PARTIAL_RECORD_SIZE])
+                    # add index entry
+                    table.index.update_record_in_index(column_num, last_values[base_rid], base_rid, value)

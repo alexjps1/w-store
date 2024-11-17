@@ -34,17 +34,8 @@ def test_select_version(primary_keys, base_records, tail_records, query:Query):
         # break if errors were found
         assert not errors
     print("#### select_version PASSED ####")
-
-def version_tester(name:str):
-    """
-    Runs insert, update, and select_version and compares results
-    """
-    # Test new database
-    db = Database()
-    db.open(db_name)
-    table = db.create_table(name, num_col, 0)
-    query = Query(table)
-
+    
+def build_records(update_column_selector=lambda x: x%(num_col - 1) + 1) -> tuple[list[int], list[list[int]], list[list[list[int|None]]]]:
     # Build solutions
     primary_keys = [9200000 + i for i in range(num_records)]
     base_records = []
@@ -62,11 +53,13 @@ def version_tester(name:str):
         updates = []
         for i in range(updates_per_record):
             l = [None]*num_col
-            m = i%(num_col - 1) + 1
-            l[m] = i*n + 8
+            m = update_column_selector(i)
+            l[m] = i + n + m + 8
             updates.append(l)
         tail_records.append(updates)
+    return primary_keys, base_records, tail_records
 
+def insert_into_table(query:Query, primary_keys:list[int], base_records:list[list[int]], tail_records:list[list[list[int|None]]]) -> None:
     # print(f"BASE RECORDS::\n{base_records}\nTAIL RECORDS::\n{tail_records}")
     # perform queries
     print("starting insert")
@@ -82,6 +75,19 @@ def version_tester(name:str):
             query.update(key, *u)
             n += 1
     print(f"Appended {n} Tail Records")
+
+def version_tester(name:str):
+    """
+    Runs insert, update, and select_version and compares results
+    """
+    # Test new database
+    db = Database()
+    db.open(db_name)
+    table = db.create_table(name, num_col, 0)
+    query = Query(table)
+
+    primary_keys, base_records, tail_records = build_records()
+    insert_into_table(query, primary_keys, base_records, tail_records)
 
     print("\n-- Testing select_version on NEW Table --\n")
     # compare solutions to query results
@@ -100,5 +106,36 @@ def version_tester(name:str):
     print("closing database")
     db.close()
 
+def uneven_updates_tester(name:str):
+    """
+    Runs insert, update, and select_version and compares results
+    """
+    # Test new database
+    db = Database()
+    db.open(db_name)
+    table = db.create_table(name, num_col, 0)
+    query = Query(table)
+
+    primary_keys, base_records, tail_records = build_records(update_column_selector=lambda x:1)
+    insert_into_table(query, primary_keys, base_records, tail_records)
+
+    print("\n-- Testing select_version on NEW Table with Uneven Updates --\n")
+    # compare solutions to query results
+    test_select_version(primary_keys, base_records, tail_records, query)
+    print("closing database")
+    db.close()
+
+    # test loading a existing table
+    print("\n-- Testing select_version on LOADED Table with Uneven Updates --\n")
+    db = Database()
+    db.open(db_name)
+    table = db.get_table(name)
+    query = Query(table)
+    # compare solutions to query results
+    test_select_version(primary_keys, base_records, tail_records, query)
+    print("closing database")
+    db.close()
+
 if __name__ == "__main__":
     version_tester("VersionTable")
+    uneven_updates_tester("UnevenTable")
