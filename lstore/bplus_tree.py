@@ -1,4 +1,5 @@
 """
+
 B Plus Tree
 """
 
@@ -14,6 +15,12 @@ class TreeEntry:
         self.prev_ver_key = prev_ver_key
         self.next_ver_key = next_ver_key
         self.abs_ver = abs_ver
+
+    def __str__(self):
+        return f"""RID: {self.rid}
+        PREV_VER_KEY: {self.prev_ver_key}
+        NEXT_VER_KEY: {self.next_ver_key}
+        ABS_VER: {self.abs_ver}"""
 
     def set_next_ver_key(self, next_ver_key):
         self.next_ver_key = next_ver_key
@@ -96,7 +103,7 @@ class LeafNode(Node):
         while i < len(self.keys) and key > self.keys[i]:
             i += 1
         self.keys.insert(i, key)
-        self.tree_entry_lists.insert(i, [TreeEntry(rid)])
+        self.tree_entry_lists.insert(i, [TreeEntry(rid, abs_ver, prev_ver_key)])
 
     def update_entry_next_ver_key(self, key, rid, next_ver_key) -> int:
         """
@@ -195,10 +202,10 @@ class BPlusTree:
         leaf = self._find_leaf(self.root, prev_ver_key)
 
         # update previous record with new pointer to current value
-        prev_abs_abs = leaf.update_entry_next_ver_key(prev_ver_key, rid, new_ver_key)
+        prev_abs_ver = leaf.update_entry_next_ver_key(prev_ver_key, rid, new_ver_key)
 
         # insert new record
-        self.insert(new_ver_key, rid, prev_abs_abs + 1, prev_ver_key)
+        self.insert(new_ver_key, rid, prev_abs_ver + 1, prev_ver_key)
 
     def delete(self, key: int, rid: RID):
         """
