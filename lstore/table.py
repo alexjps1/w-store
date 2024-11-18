@@ -110,7 +110,7 @@ class Table:
         page_num = self.current_base_page_number
         # create the new rid
         new_rid = coords_to_rid(False, page_num, offset)
-        # print(f"base RID{new_rid} page{page} page#{page_num} offset{offset}")
+        # print(f"    insert_record_into_pages: base RID{new_rid} page#{page_num} offset{offset} cols{columns} page object{page}")
         # write metadata, put RID in both RID_COLUMN and INDIRECTION_COLUMN
         # write metadata and data columns
         success_state = self.write_new_record(new_rid, new_rid, [0]*self.num_columns, columns, page, False)
@@ -159,7 +159,7 @@ class Table:
         page_num = self.current_tail_page_number
         # create the new rid
         new_tail_rid = coords_to_rid(True, page_num, offset)
-        # print(f"tail RID{new_tail_rid} page{page} page#{page_num} offset{offset}")
+        # print(f"    append_tail_record: tail RID{new_tail_rid} page#{page_num} offset{offset} cols{columns} page object{page}")
         # write metadata and data columns
         success_state = self.write_new_record(new_tail_rid, old_tail_rid, schema_encoding, columns, page, True, base_RID)
 
@@ -176,6 +176,8 @@ class Table:
         base_page.overwrite_direct(int_to_bytearray(new_tail_rid, self.record_size), offset)
         # print("new tail")
         # debug_print(new_tail_rid, self)
+        for i in range(len(columns)):
+            self.get_partial_record(new_tail_rid, i + NUM_METADATA_COLUMNS)
         return success_state
 
     def write_new_record(self, RID:int, indirection:int, schema:list[int], columns:list[int], rid_page:Page, is_tail:bool, base_rid:int=0) -> bool:

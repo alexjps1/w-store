@@ -17,10 +17,10 @@ class TreeEntry:
         self.abs_ver = abs_ver
 
     def __str__(self):
-        return f"""RID: {self.rid}
-        PREV_VER_KEY: {self.prev_ver_key}
-        NEXT_VER_KEY: {self.next_ver_key}
-        ABS_VER: {self.abs_ver}"""
+        rid_str = str(self.rid)
+        if len(rid_str) > 3:
+            rid_str = "..." + rid_str[-3:]
+        return f"({rid_str}, {self.abs_ver}, {self.prev_ver_key}, {self.next_ver_key})"
 
     def set_next_ver_key(self, next_ver_key):
         self.next_ver_key = next_ver_key
@@ -198,6 +198,9 @@ class BPlusTree:
             self._split_leaf(leaf)
 
     def update(self, new_ver_key: int, prev_ver_key: int, rid: RID) -> None:
+        if new_ver_key == prev_ver_key:
+            # do not add to the index for redundant updates
+            return
         assert isinstance(self.root, Node)
         leaf = self._find_leaf(self.root, prev_ver_key)
 

@@ -90,7 +90,7 @@ class Query:
     """
     def update(self, primary_key, *columns):
         # find the base record with primary_key
-        rid = self.table.index.locate(0, primary_key)[0]
+        rid = self.table.index.locate(self.table.key, primary_key)[0]
         new_primary_key = columns[self.table.key]
         # print(f"rids :: {rid}, new_primary_key :: {new_primary_key}")
         if new_primary_key is not None:
