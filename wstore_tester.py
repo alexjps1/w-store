@@ -3,9 +3,9 @@ from lstore.query import Query
 from lstore.transaction import Transaction
 from random import shuffle
 
-db_name = "Project2Test"
+db_name = "Project3Test"
 num_col = 5
-num_records = 8
+num_records = 60
 updates_per_record = 6
 
 
@@ -13,11 +13,13 @@ def add_lists(l1, l2):
     assert len(l1) == len(l2)
     return [l1[i] if l2[i] is None else l2[i] for i in range(len(l1))]
 
-def test_select_version(primary_keys, base_records, tail_records, query:Query):
+def __test_select_version(primary_keys, base_records, tail_records, query:Query):
     # test versions
     # print("-> running select_version")
     for i, key in enumerate(primary_keys):
-        base = base_records[i]
+        base_keys = [r[0] for r in base_records]
+        base_index = base_keys.index(key)
+        base = base_records[base_index]
         answers = [base]
         answer = base
         for x in range(updates_per_record):
@@ -26,6 +28,7 @@ def test_select_version(primary_keys, base_records, tail_records, query:Query):
             answer = add_lists(answer, tail)
             answers.append(answer)
         # check answers
+        # print(f"Answers: {answers}\n\nPrimary Keys: {primary_keys}\n\nBase records: {base_records}\n\nTail records: {tail_records}\n\n")
         errors = False
         for x in range(updates_per_record):
             records = query.select_version(key, 0, [1]*num_col, -x)
@@ -35,9 +38,9 @@ def test_select_version(primary_keys, base_records, tail_records, query:Query):
                 errors = True
         # break if errors were found
         assert not errors
-    print("#### select_version PASSED ####")
+    print("#### PASSED ####")
     
-def build_records(update_column_selector=lambda x: x%(num_col - 1) + 1) -> tuple[list[int], list[list[int]], list[list[list[int|None]]]]:
+def __build_records(update_column_selector=lambda x: x%(num_col - 1) + 1) -> tuple[list[int], list[list[int]], list[list[list[int|None]]]]:
     # Build solutions
     primary_keys = [9200000 + i for i in range(num_records)]
     base_records = []
@@ -59,33 +62,33 @@ def build_records(update_column_selector=lambda x: x%(num_col - 1) + 1) -> tuple
             l[m] = i + n + m + 8
             updates.append(l)
         tail_records.append(updates)
-    # shuffle(primary_keys)
-    # shuffle(base_records)
-    # shuffle(tail_records)
+    shuffle(primary_keys)
+    shuffle(base_records)
+    shuffle(tail_records)
     return primary_keys, base_records, tail_records
 
-def insert_into_table(query:Query, primary_keys:list[int], base_records:list[list[int]], tail_records:list[list[list[int|None]]]) -> None:
+def insert_into_table(query:Query, table:"Table", primary_keys:list[int], base_records:list[list[int]], tail_records:list[list[list[int|None]]]) -> None:
     # print(f"BASE RECORDS::\n{base_records}\nTAIL RECORDS::\n{tail_records}")
     # perform queries
-    print("starting insert")
+    # print("starting insert")
     n = 0
     for r in base_records:
         query.insert(*r)
         n += 1
-    print(f"Inserted {n} Records")
-    print("starting updates")
+    # print(f"Inserted {n} Records")
+    # print("starting updates")
     n = 0
     for i, key in enumerate(primary_keys):
         for u in tail_records[i]:
             query.update(key, *u)
             n += 1
-    print(f"Appended {n} Tail Records")
+    # print(f"Appended {n} Tail Records")
 
 def transaction_into_table(query:Query, table:"Table", primary_keys:list[int], base_records:list[list[int]], tail_records:list[list[list[int|None]]]) -> None:
     # print(f"BASE RECORDS::\n{base_records}\nTAIL RECORDS::\n{tail_records}")
     # perform queries
     transaction = Transaction()
-    print("building transaction")
+    # print("building transaction")
     n = 0
     for r in base_records:
         transaction.add_query(query.insert, table, *r)
@@ -97,11 +100,11 @@ def transaction_into_table(query:Query, table:"Table", primary_keys:list[int], b
             transaction.add_query(query.update, table, key, *u)
             # query.update(key, *u)
             n += 1
-    print("running transaction")
+    # print("running transaction")
     r = transaction.run()
     print("transaction successful" if r else "transaction failed")
 
-def version_tester(name:str):
+def general_tester(name:str, build_function, record_function=None):
     """
     Runs insert, update, and select_version and compares results
     """
@@ -111,84 +114,40 @@ def version_tester(name:str):
     table = db.create_table(name, num_col, 0)
     query = Query(table)
 
-    primary_keys, base_records, tail_records = build_records()
-    insert_into_table(query, primary_keys, base_records, tail_records)
+    if record_function is not None:
+        primary_keys, base_records, tail_records = __build_records(record_function)
+    else:
+        primary_keys, base_records, tail_records = __build_records()
+    build_function(query, table, primary_keys, base_records, tail_records)
 
-    print("\n-- Testing select_version on NEW Table --\n")
+    print("-- Testing on NEW Table --")
     # compare solutions to query results
-    test_select_version(primary_keys, base_records, tail_records, query)
-    print("closing database")
+    __test_select_version(primary_keys, base_records, tail_records, query)
+    # print("closing database")
     db.close()
 
     # test loading a existing table
-    print("\n-- Testing select_version on LOADED Table --\n")
+    print("-- Testing on LOADED Table --")
     db = Database()
     db.open(db_name)
     table = db.get_table(name)
     query = Query(table)
     # compare solutions to query results
-    test_select_version(primary_keys, base_records, tail_records, query)
-    print("closing database")
+    __test_select_version(primary_keys, base_records, tail_records, query)
+    # print("closing database")
     db.close()
+
+def version_tester(name:str):
+    print("Version Tester")
+    general_tester(name, insert_into_table)
 
 def uneven_updates_tester(name:str):
-    """
-    Runs insert, update, and select_version and compares results
-    """
-    # Test new database
-    db = Database()
-    db.open(db_name)
-    table = db.create_table(name, num_col, 0)
-    query = Query(table)
-
-    primary_keys, base_records, tail_records = build_records(update_column_selector=lambda x:1)
-    insert_into_table(query, primary_keys, base_records, tail_records)
-
-    print("\n-- Testing select_version on NEW Table with Uneven Updates --\n")
-    # compare solutions to query results
-    test_select_version(primary_keys, base_records, tail_records, query)
-    print("closing database")
-    db.close()
-
-    # test loading a existing table
-    print("\n-- Testing select_version on LOADED Table with Uneven Updates --\n")
-    db = Database()
-    db.open(db_name)
-    table = db.get_table(name)
-    query = Query(table)
-    # compare solutions to query results
-    test_select_version(primary_keys, base_records, tail_records, query)
-    print("closing database")
-    db.close()
+    print("Uneven Updates Tester")
+    general_tester(name, insert_into_table, lambda x:1)
 
 def test_transaction(name:str):
-    """
-    """
-    # Test new database
-    db = Database()
-    db.open(db_name)
-    table = db.create_table(name, num_col, 0)
-    query = Query(table)
-
-    primary_keys, base_records, tail_records = build_records(update_column_selector=lambda x:1)
-    transaction_into_table(query, table, primary_keys, base_records, tail_records)
-
-    print("\n-- Testing transaction on NEW Table --\n")
-    # compare solutions to query results
-    test_select_version(primary_keys, base_records, tail_records, query)
-    # print("closing database")
-    db.close()
-
-    # test loading a existing table
-    print("\n-- Testing transaction on LOADED Table --\n")
-    db = Database()
-    db.open(db_name)
-    table = db.get_table(name)
-    query = Query(table)
-    # compare solutions to query results
-    test_select_version(primary_keys, base_records, tail_records, query)
-    # print("closing database")
-    db.close()
+    print("Single Transaction Tester")
+    general_tester(name, transaction_into_table)
 
 if __name__ == "__main__":
     version_tester("VersionTable")
