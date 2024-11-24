@@ -8,32 +8,44 @@ class LockManager:
     def __init__(self):
         """Contains mapping for records to locks, as well as locks
         for important data structures shared by each worker thread"""
-        self.record_locks = {}
+        self.exclusive_record_locks = {}
+        self.shared_record_locks = {}
         #Shared locks are acquired by the main thread, to prevent access
         self.index_lock = Lock()
         self.page_dir_lock = Lock()
         self.lock_manager_lock = Lock()     #May be unecessary
 
-    def add_lock(self, RID):
-        """
-        Adds a for associated RID to the record->lock mapping
-        This should be called alongside insert methods
-        """
-        self.record_locks[RID] = Lock()
-
-    def get_record_lock(self, RID:int) -> bool:
+    def get_record_lock(self, RID:int, is_exclusive:bool) -> bool:
         """
         Acquires lock assoicated with RID
         Output: Returns True if lock was acquired, False if not
         """
-        if RID not in self.record_locks:
-            self.record_locks[RID] = Lock()
-        return self.record_locks[RID].acquire(blocking=False)
+        if is_exclusive:
+            #If shared lock being used, fail and return false
+            if RID in self.shared_record_locks:
+                return False                            #Simply check if there is shared lock
+            #Else try to acquire exclusive lock
+            if RID not in self.exclusive_record_locks:
+                self.exclusive_record_locks[RID] = Lock()
+            return self.exclusive_record_locks[RID].acquire(blocking=False)
+        else:
+            #If exclusive lock being used, fail and return false
+            if RID in self.exclusive_record_locks:
+                if self.exclusive_record_locks[RID].locked():
+                    return False
+            #Else try to acquire shared lock
+            if RID not in self.shared_record_locks:
+                self.shared_record_locks[RID] = Lock()
+            return not self.shared_record_locks[RID].locked()       #Return True if shared lock not blocked
     
-    def release_record_lock(self, RID):
+    def release_record_lock(self, RID:int, is_exclusive:bool):
         """Delete Record Lock if in mapping"""
-        if RID in self.record_locks:
-            del self.record_locks[RID]
+        if is_exclusive:
+            if RID in self.exclusive_record_locks:
+                del self.exclusive_record_locks[RID]
+        else:
+            if RID in self.shared_record_locks:
+                del self.shared_record_locks[RID]
     
     def is_acquired(self, data_struct_id:int) -> bool:
         """Returns whether the shared lock is acquired"""
