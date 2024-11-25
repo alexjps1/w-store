@@ -106,7 +106,11 @@ class Query:
     """
     def update(self, primary_key, *columns):
         # find the base record with primary_key
-        rid = self.table.index.locate(self.table.key, primary_key)[0]
+        rids = self.table.index.locate(self.table.key, primary_key)
+        if rids is None or rids is False or len(rids) == 0:
+            return False
+        else:
+            rid = rids[0]
         new_primary_key = columns[self.table.key]
         # print(f"rids :: {rid}, new_primary_key :: {new_primary_key}")
         if new_primary_key is not None:
