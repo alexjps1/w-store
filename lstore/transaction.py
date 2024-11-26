@@ -1,5 +1,6 @@
 from lstore.table import Table, Record
 from lstore.index import Index
+from lstore.config import debug_print as print
 
 class Transaction:
 

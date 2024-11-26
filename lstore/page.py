@@ -3,6 +3,7 @@ Module Interfaces:
     Config for page size
 """
 from lstore.config import PAGE_SIZE, FIXED_PARTIAL_RECORD_SIZE
+from lstore.config import debug_print as print
 
 
 class Page:

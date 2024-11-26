@@ -2,6 +2,7 @@ from pathlib import Path
 from lstore.table import Table
 from lstore.config import DATABASE_DIR, NUM_METADATA_COLUMNS, FIXED_PARTIAL_RECORD_SIZE, RID_COLUMN, OVERRIDE_WITH_DUMB_INDEX
 from lstore.config import bytearray_to_int
+from lstore.config import debug_print as print
 from typing import Literal
 
 class Database():
@@ -113,7 +114,7 @@ class Database():
         """
         # if table is already loaded, return it
         if name in self.tables.keys():
-            # print(f"table {name} already loaded")
+            print(f"table {name} already loaded")
             return self.tables[name]
         # load table from disk
         path = Path(DATABASE_DIR, f"{self.database_path}", f"{name}")

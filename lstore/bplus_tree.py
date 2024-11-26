@@ -5,6 +5,7 @@ B Plus Tree
 
 from sys import base_prefix
 from typing import NewType, List, Union, Tuple
+from lstore.config import debug_print as print
 
 # NOTE: Assuming RIDs are integers for typing purposes
 RID = NewType('RID', int)

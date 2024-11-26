@@ -1,6 +1,7 @@
 from lstore.page import Page
 from lstore.config import BUFFERPOOL_SIZE, DATABASE_DIR, FIXED_PARTIAL_RECORD_SIZE
 from lstore.config import int_to_bytearray, bytearray_to_int
+from lstore.config import debug_print as print
 from pathlib import Path
 from time import time_ns
 """

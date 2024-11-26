@@ -1,6 +1,7 @@
 import unittest
 from bplus_tree import *
 from random import randint, choice
+from lstore.config import debug_print as print
 import time
 
 def rand_rid():

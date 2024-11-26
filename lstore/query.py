@@ -1,5 +1,6 @@
 from lstore.table import Table, Record
 from lstore.lock_manager import LockManager, INDEX, PAGE_DIR
+from lstore.config import debug_print as print
 # from lstore.index import Index
 from typing import Literal
 

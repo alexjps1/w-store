@@ -6,16 +6,12 @@ from lstore.page import Page
 from typing import List, Literal, Tuple
 from pathlib import Path
 from lstore.config import *
+from lstore.config import debug_print as print
 import copy
 
 # graphing
 # from lstore.config import FIXED_PARTIAL_RECORD_SIZE, PAGE_SIZE, INDEX_USE_BPLUS_TREE, OVERRIDE_WITH_DUMB_INDEX, INDEX_BPLUS_TREE_MAX_DEGREE
 
-
-def debug_print(debug_rid, table):
-    x1, x2, x3 = rid_to_coords(debug_rid)
-    debug_cols = [table.get_partial_record(debug_rid, debug_index) for debug_index in range(len(table.page_directory.keys()))]
-    print(debug_cols)
 
 class Record:
     """
@@ -131,9 +127,6 @@ class Table:
         # find the most recent tail record from base record's indirection
         # check tail != base, or that Base Records default to their RIDs in the INDIRECTION_COLUMN instead of a null value
         old_tail_rid = self.get_partial_record(base_RID, INDIRECTION_COLUMN)
-        # debug_print(base_RID, self)
-        # print("old tail")
-        # debug_print(old_tail_rid, self)
         # check if this record is deleted
         if old_tail_rid == RID_TOMBSTONE_VALUE:
             return False
@@ -174,8 +167,6 @@ class Table:
 
         assert base_page is not None
         base_page.overwrite_direct(int_to_bytearray(new_tail_rid, self.record_size), offset)
-        # print("new tail")
-        # debug_print(new_tail_rid, self)
         for i in range(len(columns)):
             self.get_partial_record(new_tail_rid, i + NUM_METADATA_COLUMNS)
         return success_state
@@ -318,7 +309,6 @@ class Table:
                 # locate the correct version
                 for _ in range(version, 0):
                     # get the next tail record
-                    # debug_print(tail_RID, self)
                     tail_RID = self.get_partial_record(tail_RID, INDIRECTION_COLUMN)
                     if tail_RID == RID:
                         # if history stack is smaller then disiered result, give the base rid
@@ -359,13 +349,8 @@ class Table:
         tail_rid = Tail_RID
         # NOTE cumulative and non-cumulative implementations are functionally similar in this code base since records must be lined up along pages, non-cumulative tail records will write null values to pages not in the update range, but the schema_encoding should prevent those partial records from being read.
 
-        # print("base record")
-        # debug_print(Base_RID)
-
         while 1 in aggregate_mask:
             is_tail, _, _ = rid_to_coords(tail_rid)
-            # print("applying tail", tail_rid)
-            # debug_print(tail_rid)
             if is_tail:
                 tail_schema = self.get_partial_record(tail_rid, SCHEMA_ENCODING_COLUMN)
                 # only check columns that are the intersection of the tail record schema and the column_mask
