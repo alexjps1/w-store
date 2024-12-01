@@ -1,4 +1,5 @@
 from lstore.index import Index
+from lstore.new_index import New_Index
 from lstore.placeholder_index import DumbIndex
 from lstore.page_directory import PageDirectory
 from time import time_ns
@@ -42,6 +43,7 @@ class Table:
                  page_size=PAGE_SIZE,
                  record_size=FIXED_PARTIAL_RECORD_SIZE,
                  use_bplus=INDEX_USE_BPLUS_TREE,
+                 use_hash=INDEX_USE_HASH,
                  use_dumbindex=OVERRIDE_WITH_DUMB_INDEX,
                  bplus_degree=INDEX_BPLUS_TREE_MAX_DEGREE):
         self.name = name
@@ -52,6 +54,7 @@ class Table:
         self.page_size = page_size
         self.record_size = record_size
         self.use_bplus=use_bplus
+        self.use_hash=use_hash
         self.use_dumbindex=use_dumbindex
         self.bplus_degree=bplus_degree
         self.ref_time = time_ns()
@@ -80,7 +83,7 @@ class Table:
                                                 self.current_base_page_number)
 
         if not self.use_dumbindex:
-            self.index = Index(self, use_bplus=self.use_bplus, degree=self.bplus_degree)
+            self.index = New_Index(self, use_bplus=self.use_bplus, use_hash=self.use_hash, degree=self.bplus_degree)
         else:
             self.index = DumbIndex(self)
 
@@ -281,6 +284,38 @@ class Table:
         assert page is not None
         # return the Page
         return page
+
+    def select_version(self, col_num:int, key:int, rel_ver:int):
+        """Iterate over each base record, check if rel_ver has value of key"""
+        result = []
+        rel_ver = -1 * rel_ver      #Work with positive values
+        #for each base page
+        for page_num in range(self.current_base_page_number):
+            base_page = self.page_directory.retrieve_page(col_num, False, page_num)
+            rid_page = self.page_directory.retrieve_page(RID_COLUMN, False, page_num)
+            indir_page = self.page_directory.retrieve_page(INDIRECTION_COLUMN, False, page_num)
+            #For every base record
+            for offset in range(base_page.num_records):
+                #First base & tail RIDs
+                curr_val = bytearray_to_int(base_page.retrieve_direct(offset))
+                base_record_rid = bytearray_to_int(rid_page.retrieve_direct(offset))
+                tail_record_rid = bytearray_to_int(indir_page.retrieve_direct(offset))
+                _, tail_page_num, tail_record_offset = rid_to_coords(tail_record_rid)
+
+                curr_version = 1
+                #Exit if wrong curr_val w/right rel_ver, no rel_ver
+                while curr_version<=rel_ver and tail_record_rid!=base_record_rid:
+                    #Success!
+                    if curr_version==rel_ver and curr_val==key:
+                        result.append(base_record_rid)
+                    #Get new tail_rid, tail_page
+                    _, tail_page_num, tail_record_offset = rid_to_coords(tail_record_rid)
+                    tail_page = self.page_directory.retrieve_page(col_num, True, tail_page_num)
+                    indir_page = self.page_directory.retrieve_page(INDIRECTION_COLUMN, False, tail_page_num)
+                    tail_record_rid = bytearray_to_int(indir_page.retrieve_direct(tail_record_offset))
+                    curr_val = bytearray_to_int(tail_page.retrieve_direct(tail_record_offset))
+                    curr_version += 1
+        return result
 
     def locate_record(self, RID: int, key:int, column_mask:list[int], version:int=0) -> Record|Literal[False]:
         """

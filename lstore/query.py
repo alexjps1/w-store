@@ -81,7 +81,11 @@ class Query:
     """
     def select_version(self, search_key, search_key_index, projected_columns_index, relative_version):
         # find the Record IDs
-        rids = self.table.index.locate_version(search_key_index, search_key, relative_version)
+        if relative_version==0:
+            rids = self.table.index.locate_version(search_key_index, search_key, relative_version)
+        else:
+            print("here")
+            rids = self.table.select_version(search_key_index, search_key, relative_version)
         if rids is False or len(rids) == 0:
             return False
         locks = [self.lock_manager.get_record_lock(rid, False) for rid in rids]
