@@ -16,7 +16,7 @@ class Database():
     def __init__(self) -> None:
         # set of tables, identified by their name
         self.tables:dict[str, Table] = {}   # this assumes no 2 tables have the same name
-        self.database_path:Path = DATABASE_DIR
+        self.database_path:Path = Path("default")
         self.table_info_file = "__table_info__.bin"
 
     def open(self, path:str):
@@ -69,7 +69,7 @@ class Database():
         path = Path(DATABASE_DIR, f"{self.database_path}", f"{name}")
         if path.exists():
             # existing table, clear data
-            # print("clearing existing table")
+            print(f"clearing existing table {name}")
             self.drop_table(name)
         # dir is either not there, or we just deleted it
         # print(f"making new table {name}")
@@ -100,6 +100,16 @@ class Database():
             self.tables[name].page_directory.file_manager.delete_files()
             # remove table from database
             del self.tables[name]
+        else:
+            # table not loaded, but files may be present
+            dir_name = Path(DATABASE_DIR, self.database_path, name)
+            if dir_name.exists():
+                for file in dir_name.iterdir():
+                    #Remove file if it is a file
+                    if file.is_file():
+                        file.unlink()
+                #Delete the table
+                dir_name.rmdir()
 
     
     """
