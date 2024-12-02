@@ -84,7 +84,6 @@ class Query:
         if relative_version==0:
             rids = self.table.index.locate_version(search_key_index, search_key, relative_version)
         else:
-            print("here")
             rids = self.table.select_version(search_key_index, search_key, relative_version)
         if rids is False or len(rids) == 0:
             return False
