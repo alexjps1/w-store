@@ -1,5 +1,6 @@
 from lstore.config import RID_COLUMN, NUM_METADATA_COLUMNS
 from lstore.config import bytearray_to_int
+from lstore.config import debug_print as print
 
 class DumbIndex:
     """
