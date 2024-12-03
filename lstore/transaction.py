@@ -20,6 +20,7 @@ class Transaction:
     """
     def add_query(self, query, table, *args):
         self.queries.append((query, args))
+        self.results = []
         # use grades_table for aborting
 
         
@@ -27,6 +28,7 @@ class Transaction:
     def run(self):
         for query, args in self.queries:
             result = query(*args)
+            self.results.append(result)
             # If the query has failed the transaction should abort
             if result == False:
                 return self.abort()
