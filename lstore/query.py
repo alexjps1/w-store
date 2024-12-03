@@ -85,6 +85,9 @@ class Query:
             rids = self.table.index.locate_version(search_key_index, search_key, relative_version)
         else:
             rids = self.table.select_version(search_key_index, search_key, relative_version)
+            #Prev version not found, find latest
+            if len(rids)==0:
+                rids = self.table.index.locate_version(search_key_index, search_key, 0)
         if rids is False or len(rids) == 0:
             return False
         locks = [self.lock_manager.get_record_lock(rid, False) for rid in rids]
