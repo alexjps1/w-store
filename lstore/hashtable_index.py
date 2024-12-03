@@ -71,7 +71,7 @@ class HashtableIndex:
         #Return list of RIDs within range of key values
         result = []
         while key_start<=key_end:
-            result += self.hashtable[key_start]
+            result += self.point_query(key_start)
             key_start += 1
         return result
 
@@ -83,6 +83,12 @@ class HashtableIndex:
         if key in self.hashtable:
             return self.hashtable[key]
         return []
+    
+    def save_index(self):
+        pass
+
+    def load_index(self):
+        pass
 
 """
     incomplete methods for key->list[RID,rel_val]  mapping
@@ -127,7 +133,7 @@ class HashtableIndex:
 if __name__=="__main__":
     index = HashtableIndex()
 
-    #Test queries
+    print("""___TESTING_PQs___""")
     for i in range(1000):
         index.insert(i%100, i)
     print(index.point_query(0))
@@ -135,9 +141,9 @@ if __name__=="__main__":
     print(index.range_query(0, 2))
 
 
-    #Testing Update
+    print("""___TESTING_UPDATE___""")
     index.update(5, 0, 0)              #move rid 0 to list for 5
-    index.update(5, 0, 100)             #movie rid 100 to list for 5
+    index.update(5, 0, 100)             #move rid 100 to list for 5
     index.update(101, 0, 200)
 
     print(index.point_query(101))
@@ -146,6 +152,7 @@ if __name__=="__main__":
 
     for i in range(7):
         index.update(5, 0, 300+(i*100))
+    print(index.point_query(0))
     print(index.point_query(5))
     try:
         print(index.hashtable[0])
@@ -153,6 +160,7 @@ if __name__=="__main__":
         print("There is no key-value pair for: 0")
 
     #Test delete
+    print("""___TESTING_DELETE___""")
     index.delete(1, 1)
     print(index.point_query(1))
     for i in range(1, 10):
@@ -163,3 +171,6 @@ if __name__=="__main__":
     except KeyError:
         print("There is no key-value pair for: 1")
 
+    print("___TESTING_SELECT_VERSION___")
+    print(index.point_query(2))
+    print(index.version_query(2,0))
