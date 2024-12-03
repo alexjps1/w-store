@@ -5,9 +5,6 @@ from lstore.transaction import Transaction
 from pathlib import Path
 from enum import Enum
 from typing import Callable
-# from random import shuffle
-# from random import randint
-# from json import dump, load
 
 db_name = "WstoreTesterDatabase"
 answerkey_file = Path("wstore_tester_answerkey.json")
@@ -73,6 +70,7 @@ def evaluate_correctness(test_cases:list[Test]) -> list[bool]:
         correctness[i] = test.evaluate()
     return correctness
 
+
 def prepend_sorted_tests(eval_test_cases:list[Test], prepend_test_cases:list[Test]) -> list[Test]:
     new_list = []
     end_list_one = False
@@ -104,7 +102,8 @@ def prepend_sorted_tests(eval_test_cases:list[Test], prepend_test_cases:list[Tes
                 j += 1
     return new_list
 
-def create_tests() -> list[Test]:
+
+def create_tests(is_loaded=False) -> list[Test]:
     """
     The evaluation layer initializes the query test sweat with the queries and their expected results.
     - insert on:
@@ -152,8 +151,9 @@ def create_tests() -> list[Test]:
             [920008, 1, 0, 2, 5],
             [920009, 4, 5, 8, 8]
             ]
-    for record in base_records:
-        tests.append(Test(QueryType.INSERT, True, columns=record))
+    if not is_loaded:
+        for record in base_records:
+            tests.append(Test(QueryType.INSERT, True, columns=record))
     # test bad inserts
     bad_base_records = [
             [],
@@ -163,8 +163,9 @@ def create_tests() -> list[Test]:
             [9998, 0, 1, 2, 3, 4, 5],
             [920000, 6, 6, 4, 4]
             ]
-    for record in bad_base_records:
-        tests.append(Test(QueryType.INSERT, False, columns=record))
+    if not is_loaded:
+        for record in bad_base_records:
+            tests.append(Test(QueryType.INSERT, False, columns=record))
     # test normal updates
     tail_records = [
             [None, 99, None, None, None],
@@ -178,8 +179,9 @@ def create_tests() -> list[Test]:
             [None, None, None, 83, None],
             [None, None, None, None, 84]
             ]
-    for i in range(len(tail_records)):
-        tests.append(Test(QueryType.UPDATE, True, primary_key=920000+i, columns=tail_records[i]))
+    if not is_loaded:
+        for i in range(len(tail_records)):
+            tests.append(Test(QueryType.UPDATE, True, primary_key=920000+i, columns=tail_records[i]))
     # test bad updates
     bad_tail_records = [
             [],
@@ -187,10 +189,11 @@ def create_tests() -> list[Test]:
             [920006, None, 555, None, None], # update to existing primary key
             [920002, 999, 666, 333, 111] # this is valid but we will delete it later, in an invalid way
             ]
-    tests.append(Test(QueryType.UPDATE, False, primary_key=920004, columns=bad_tail_records[0]))
-    tests.append(Test(QueryType.UPDATE, False, primary_key=920005, columns=bad_tail_records[1]))
-    tests.append(Test(QueryType.UPDATE, False, primary_key=920001, columns=bad_tail_records[2]))
-    tests.append(Test(QueryType.UPDATE, True, primary_key=920009, columns=bad_tail_records[3]))
+    if not is_loaded:
+        tests.append(Test(QueryType.UPDATE, False, primary_key=920004, columns=bad_tail_records[0]))
+        tests.append(Test(QueryType.UPDATE, False, primary_key=920005, columns=bad_tail_records[1]))
+        tests.append(Test(QueryType.UPDATE, False, primary_key=920001, columns=bad_tail_records[2]))
+        tests.append(Test(QueryType.UPDATE, True, primary_key=920009, columns=bad_tail_records[3]))
     # test select
     tests.append(Test(QueryType.SELECT, add_lists(base_records[0], tail_records[0]), search_key=920000, search_key_index=0, projected_columns_index=[1]*5))
     # test bad select
@@ -215,12 +218,13 @@ def create_tests() -> list[Test]:
     tests.append(Test(QueryType.SUM_VERSION, 0, start_range=999989, end_range=999999, aggregate_column_index=3, relative_version=-1))
 
     # test delete
-    tests.append(Test(QueryType.DELETE, True, primary_key=920000))
-    # test bad deletes
-    # not allowed since this will uncover primary key 920002, and 920009 was updated to 920002
-    tests.append(Test(QueryType.DELETE, False, primary_key=120000))
-    # not a primary key
-    tests.append(Test(QueryType.DELETE, False, primary_key=0))
+    if not is_loaded:
+        tests.append(Test(QueryType.DELETE, True, primary_key=920000))
+        # test bad deletes
+        # not allowed since this will uncover primary key 920002, and 920009 was updated to 920002
+        tests.append(Test(QueryType.DELETE, False, primary_key=120000))
+        # not a primary key
+        tests.append(Test(QueryType.DELETE, False, primary_key=0))
     return tests
 
 
@@ -274,11 +278,14 @@ class DatabaseLayer:
         # self.transaction_layer()
 
     def transaction_layer(self, layer_name:str, gen_query_function:Callable[[Database, str], Query], db:Database):
-        query_one = gen_query_function(db, "TestTable")
         # ### serial tests only ###
         if not layer_name.__contains__("parallel"):
             sub_layer_name = f"{layer_name}|queries"
-            testcase_set_one = create_tests()
+            table_name = sub_layer_name.replace("new-table", "table").replace("load-table", "table")
+            query_one = gen_query_function(db, table_name)
+            if LOG_LEVEL > 8: print(f"{'#'*10}\nStarting {sub_layer_name}\n{'#'*10}")
+            is_loaded = layer_name.__contains__("load-table")
+            testcase_set_one = create_tests(is_loaded)
             # non-transaction test (just queries)
             for test_case in testcase_set_one:
                 # run queries and update results
@@ -304,13 +311,21 @@ class DatabaseLayer:
                 elif q == QueryType.SELECT:
                     try:
                         result = query_one.select(**test_case.kwargs)
-                        test_case.update_result(result)
+                        if len(result) > 0:
+                            r = result[0].columns
+                        else:
+                            r = result
+                        test_case.update_result(r)
                     except Exception as e:
                         if LOG_LEVEL > 7: print(f"FAILED during {sub_layer_name} SELECT :: Exception=={e}")
                 elif q == QueryType.SELECT_VERSION:
                     try:
                         result = query_one.select_version(**test_case.kwargs)
-                        test_case.update_result(result)
+                        if len(result) > 0:
+                            r = result[0].columns
+                        else:
+                            r = result
+                        test_case.update_result(r)
                     except Exception as e:
                         if LOG_LEVEL > 7: print(f"FAILED during {sub_layer_name} SELECT_VERSION :: Exception=={e}")
                 elif q == QueryType.SUM:
@@ -332,15 +347,20 @@ class DatabaseLayer:
                     except Exception as e:
                         if LOG_LEVEL > 7: print(f"FAILED during {sub_layer_name} DELETE :: Exception=={e}")
             correctness_one = evaluate_correctness(testcase_set_one)
+            if False in correctness_one:
+                if LOG_LEVEL >= 0: print(f"!!!!! FAILED Test {sub_layer_name} !!!!!")
+            else:
+                if LOG_LEVEL >= 0: print(f"::::: PASSED Test {sub_layer_name} :::::")
             db.close()
 
         # ### parallel and serial tests ###
-
         # transaction test
-        query_two = gen_query_function(db, "TestTable")
-        sub_layer_name = f"{layer_name}|transaction"
-        testcase_set_two = create_tests()
-        db.close()
+        # sub_layer_name = f"{layer_name}|transaction"
+        # table_name = sub_layer_name.replace("new-table", "table").replace("load-table", "table")
+        # query_two = gen_query_function(db, table_name)
+        # if LOG_LEVEL > 8: print(f"{'#'*10}\nStarting {sub_layer_name}\n{'#'*10}")
+        # testcase_set_two = create_tests()
+        # db.close()
 
     def init_database(self) -> Database:
         db = Database()
