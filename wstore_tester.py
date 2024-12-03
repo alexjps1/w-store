@@ -196,6 +196,7 @@ def create_tests(is_loaded=False) -> list[Test]:
         tests.append(Test(QueryType.UPDATE, True, primary_key=920009, columns=bad_tail_records[3]))
     # test select
     tests.append(Test(QueryType.SELECT, add_lists(base_records[0], tail_records[0]), search_key=920000, search_key_index=0, projected_columns_index=[1]*5))
+    tests.append(Test(QueryType.SELECT, add_lists(base_records[2], tail_records[2]), search_key=120000, search_key_index=0, projected_columns_index=[1]*5))
     # test bad select
     tests.append(Test(QueryType.SELECT, [], search_key=999999, search_key_index=0, projected_columns_index=[1]*5))
     tests.append(Test(QueryType.SELECT, [], search_key=920000, search_key_index=9, projected_columns_index=[1]*5))

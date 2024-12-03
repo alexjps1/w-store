@@ -55,6 +55,7 @@ class DumbIndex:
                 # check if the value at the hopped-to record is the desired value
                 if self.table.get_partial_record(cur_rid, col_num + NUM_METADATA_COLUMNS) == value:
                     result_rids.append(cur_base_rid)
+        return result_rids
 
 
     def locate_range(self, start_key:int, end_key:int, col_num: int) -> list[int]:

@@ -110,13 +110,7 @@ class Query:
             return []
         try:
             # find the Record IDs
-            if relative_version==0:
-                rids = self.table.index.locate_version(search_key_index, search_key, relative_version)
-            else:
-                rids = self.table.select_version(search_key_index, search_key, relative_version)
-                #Prev version not found, find latest
-                if len(rids)==0:
-                    rids = self.table.index.locate_version(search_key_index, search_key, 0)
+            rids = self.table.index.locate_version(search_key_index, search_key, relative_version)
             if rids is False or len(rids) == 0:
                 return [] 
             locks = [self.lock_manager.get_record_lock(rid, False) for rid in rids]
@@ -147,6 +141,14 @@ class Query:
             # don't allow updates without correct number of columns
             return False
         try:
+            # don't insert all None
+            all_none = [x is None for x in columns]
+            if False in all_none:
+                pass
+            else:
+                # all values in columns are None
+                return False
+
             # find the base record with primary_key
             rids = self.table.index.locate(self.table.key, primary_key)
             if rids is None or rids is False or len(rids) == 0:
@@ -159,14 +161,6 @@ class Query:
                 # check this new primary key is not in the table
                 primary_key_col = self.table.key
                 column_mask = [x==primary_key_col for x in range(len(columns))]
-
-                # don't insert all None
-                all_none = [x is None for x in columns]
-                if False in all_none:
-                    pass
-                else:
-                    # all values in columns are None
-                    return False
 
                 existing_primary_key = self.select(new_primary_key, primary_key_col, column_mask)
                 if len(existing_primary_key) == 0:
