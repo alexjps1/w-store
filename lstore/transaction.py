@@ -29,7 +29,7 @@ class Transaction:
 
     # If you choose to implement this differently this method must still return True if transaction commits or False on abort
     def run(self):
-        if request_table_lock(self.is_exclusive):
+        if not request_table_lock(self.is_exclusive):
             return self.abort()
 
         for query, args in self.queries:
