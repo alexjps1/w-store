@@ -8,6 +8,7 @@ class Transaction:
     # Creates a transaction object.
     """
     def __init__(self):
+        self.lock_requirement = "read_lock"
         self.queries = []
         pass
 
@@ -20,10 +21,12 @@ class Transaction:
     """
     def add_query(self, query, table, *args):
         self.queries.append((query, args))
+        if query.__name__ == "update" or query.__name__ == "delete" or query.__name__ == "insert":
+            self.lock_requirement = "write_lock"
         self.results = []
         # use grades_table for aborting
 
-        
+
     # If you choose to implement this differently this method must still return True if transaction commits or False on abort
     def run(self):
         for query, args in self.queries:
@@ -34,13 +37,16 @@ class Transaction:
                 return self.abort()
         return self.commit()
 
-    
+
     def abort(self):
         #TODO: do roll-back and any other necessary operations
+
+        # Due to the granularity of locking needing to take place on the Table level,
+        # transactions should not make any write queries unless the whole table has been aquired
+
         return False
 
-    
+
     def commit(self):
         # TODO: commit to database
         return True
-
