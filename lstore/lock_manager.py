@@ -44,7 +44,7 @@ class LockManager:
             self.table_exclusive_access = False
             print(f"Xlock released")
         else:
-            self.table_shared_access -= 1
+            self.table_shared_access_counter -= 1
             assert self.table_exclusive_access >= 0
             print(f"Slock released ({self.table_shared_access_counter} threads reading)")
         self.lock_manager_lock.release()
