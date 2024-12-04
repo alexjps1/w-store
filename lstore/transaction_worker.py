@@ -34,7 +34,7 @@ class TransactionWorker:
     Waits for the worker to finish
     """
     def join(self):
-        self.join()
+        self.t.join()
 
 
     def __run(self):
