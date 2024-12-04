@@ -277,13 +277,13 @@ class DatabaseLayer:
         # load table test
         self.concurrency_layer(f"{layer_name}|load-table", self.load_table, db_init_function, filler_tests)
 
-    def concurrency_layer(self, layer_name:str, gen_query_function:Callable[[Database, str], Query], db_init_function:Callable[[], Database], filler_tests:bool):
+    def concurrency_layer(self, layer_name:str, gen_query_function:Callable[[Database, str], tuple[Query, Table]], db_init_function:Callable[[], Database], filler_tests:bool):
         # serial test
         self.transaction_layer(f"{layer_name}|serial", gen_query_function, db_init_function, filler_tests)
         # parallel test (transaction workers)
         self.transaction_layer(f"{layer_name}|parallel", gen_query_function, db_init_function, filler_tests)
 
-    def transaction_layer(self, layer_name:str, gen_query_function:Callable[[Database, str], Query], db_init_function:Callable[[], Database], filler_tests:bool):
+    def transaction_layer(self, layer_name:str, gen_query_function:Callable[[Database, str], tuple[Query, Table]], db_init_function:Callable[[], Database], filler_tests:bool):
         """
         # ### serial tests only ###
         """
@@ -293,7 +293,7 @@ class DatabaseLayer:
             table_name = sub_layer_name.replace("new-table", "table").replace("load-table", "table")
             # init database
             db = db_init_function()
-            query_one = gen_query_function(db, table_name)
+            query, _ = gen_query_function(db, table_name)
             if LOG_LEVEL > 8: print(f"{'#'*10}\nStarting {sub_layer_name}\n{'#'*10}")
             is_loaded = layer_name.__contains__("load-table")
             # generate test cases
@@ -304,43 +304,43 @@ class DatabaseLayer:
                 q = test_case.query
                 if q == QueryType.INSERT:
                     try:
-                        result = query_one.insert(*test_case.kwargs["columns"])
+                        result = query.insert(*test_case.kwargs["columns"])
                         test_case.update_result(result)
                     except Exception as e:
                         if LOG_LEVEL > 7: print(f"FAILED during {sub_layer_name} INSERT :: Exception=={e}")
                 elif q == QueryType.UPDATE:
                     try:
-                        result = query_one.update(test_case.kwargs["primary_key"], *test_case.kwargs["columns"])
+                        result = query.update(test_case.kwargs["primary_key"], *test_case.kwargs["columns"])
                         test_case.update_result(result)
                     except Exception as e:
                         if LOG_LEVEL > 7: print(f"FAILED during {sub_layer_name} UPDATE :: Exception=={e}")
                 elif q == QueryType.SELECT:
                     try:
-                        result = query_one.select(**test_case.kwargs)
+                        result = query.select(**test_case.kwargs)
                         test_case.update_result(result)
                     except Exception as e:
                         if LOG_LEVEL > 7: print(f"FAILED during {sub_layer_name} SELECT :: Exception=={e}")
                 elif q == QueryType.SELECT_VERSION:
                     try:
-                        result = query_one.select_version(**test_case.kwargs)
+                        result = query.select_version(**test_case.kwargs)
                         test_case.update_result(result)
                     except Exception as e:
                         if LOG_LEVEL > 7: print(f"FAILED during {sub_layer_name} SELECT_VERSION :: Exception=={e}")
                 elif q == QueryType.SUM:
                     try:
-                        result = query_one.sum(**test_case.kwargs)
+                        result = query.sum(**test_case.kwargs)
                         test_case.update_result(result)
                     except Exception as e:
                         if LOG_LEVEL > 7: print(f"FAILED during {sub_layer_name} SUM :: Exception=={e}")
                 elif q == QueryType.SUM_VERSION:
                     try:
-                        result = query_one.sum_version(**test_case.kwargs)
+                        result = query.sum_version(**test_case.kwargs)
                         test_case.update_result(result)
                     except Exception as e:
                         if LOG_LEVEL > 7: print(f"FAILED during {sub_layer_name} SUM_VERSION :: Exception=={e}")
                 else: # delete
                     try:
-                        result = query_one.delete(**test_case.kwargs)
+                        result = query.delete(**test_case.kwargs)
                         test_case.update_result(result)
                     except Exception as e:
                         if LOG_LEVEL > 7: print(f"FAILED during {sub_layer_name} DELETE :: Exception=={e}")
@@ -358,7 +358,7 @@ class DatabaseLayer:
         table_name = sub_layer_name.replace("new-table", "table").replace("load-table", "table")
         # init database
         db = db_init_function()
-        query = gen_query_function(db, table_name)
+        query, table = gen_query_function(db, table_name)
         if LOG_LEVEL > 8: print(f"{'#'*10}\nStarting {sub_layer_name}\n{'#'*10}")
         is_loaded = layer_name.__contains__("load-table")
         # generate test cases
@@ -373,31 +373,31 @@ class DatabaseLayer:
             q = test_case.query
             if q == QueryType.INSERT:
                 assert phase == 0 # must add insert queries first
-                insert_transactions[i%NUM_TRANSACTIONS].add_query(query.insert, None, *test_case.kwargs["columns"])
+                insert_transactions[i%NUM_TRANSACTIONS].add_query(query.insert, table, *test_case.kwargs["columns"])
             elif q == QueryType.UPDATE:
                 if phase == 0:
                     phase += 1
-                transactions[i%NUM_TRANSACTIONS].add_query(query.update, None, test_case.kwargs["primary_key"], *test_case.kwargs["columns"])
+                transactions[i%NUM_TRANSACTIONS].add_query(query.update, table, test_case.kwargs["primary_key"], *test_case.kwargs["columns"])
             elif q == QueryType.SELECT:
                 if phase == 0:
                     phase += 1
-                transactions[i%NUM_TRANSACTIONS].add_query(query.select, None, *test_case.kwargs)
+                transactions[i%NUM_TRANSACTIONS].add_query(query.select, table, *test_case.kwargs)
             elif q == QueryType.SELECT_VERSION:
                 if phase == 0:
                     phase += 1
-                transactions[i%NUM_TRANSACTIONS].add_query(query.select_version, None, *test_case.kwargs)
+                transactions[i%NUM_TRANSACTIONS].add_query(query.select_version, table, *test_case.kwargs)
             elif q == QueryType.SUM:
                 if phase == 0:
                     phase += 1
-                transactions[i%NUM_TRANSACTIONS].add_query(query.sum, None, *test_case.kwargs)
+                transactions[i%NUM_TRANSACTIONS].add_query(query.sum, table, *test_case.kwargs)
             elif q == QueryType.SUM_VERSION:
                 if phase == 0:
                     phase += 1
-                transactions[i%NUM_TRANSACTIONS].add_query(query.sum_version, None, *test_case.kwargs)
+                transactions[i%NUM_TRANSACTIONS].add_query(query.sum_version, table, *test_case.kwargs)
             else: # delete
                 if phase == 0:
                     phase += 1
-                transactions[i%NUM_TRANSACTIONS].add_query(query.delete, None, *test_case.kwargs)
+                transactions[i%NUM_TRANSACTIONS].add_query(query.delete, table, *test_case.kwargs)
         # run transactions
         # parallel transactions test
         if layer_name.__contains__("parallel"):
@@ -495,16 +495,16 @@ class DatabaseLayer:
         db = Database()
         return db
 
-    def new_table(self, db:Database, name:str) -> Query:
+    def new_table(self, db:Database, name:str) -> tuple[Query, Table]:
         table = db.create_table(name, 5, 0)
         query = Query(table)
-        return query
+        return query, table
 
-    def load_table(self, db:Database, name:str) -> Query:
+    def load_table(self, db:Database, name:str) -> tuple[Query, Table]:
         table = db.get_table(name)
         assert type(table) == Table
         query = Query(table)
-        return query
+        return query, table
 
 
 if __name__ == "__main__":

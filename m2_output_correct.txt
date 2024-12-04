@@ -2,9 +2,9 @@
 PASS[0]
 PASS[1]
 PASS[2]
-PASS[3]: return is False
-Wrong[4]: list index out of range
+PASS[3]: return is False, their is no primary key 10
+Wrong[4]: list index out of range, attempt to add a tail record to a non-existent base record, this should have returned False
 ERROR[5]: this fails because the index only looks up base records, so it returns the record with the new primary key
-PASS[6]: return is [False]
+PASS[6]: return is [False], select did not find the deleted record
 PASS[7]
-PASS[8]: db.open("./CT")
+PASS[8]: didn't call db.open("./CT") after creating the database in correctness_tester2

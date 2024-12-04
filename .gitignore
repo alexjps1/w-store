@@ -189,3 +189,4 @@ lstore/__pycache__
 __lstore_env__
 disk/*
 lstore/disk/*
+output.txt

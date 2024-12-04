@@ -8,7 +8,7 @@ from typing import List, Literal, Tuple
 from pathlib import Path
 from lstore.config import *
 from lstore.config import debug_print as print
-import copya
+import copy
 from lstore.lock_manager import LockManager
 
 # graphing
