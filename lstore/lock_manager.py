@@ -1,7 +1,4 @@
 from threading import Lock
-from lstore.config import debug_print as print
-from typing import List
-from lstore.transaction import Transaction
 
 INDEX = 0
 PAGE_DIR = 1
@@ -11,9 +8,9 @@ class LockManager:
     def __init__(self):
         """Contains mapping for records to locks, as well as locks
         for important data structures shared by each worker thread"""
-        self.lock_manger_lock = Lock()
+        self.lock_manager_lock = Lock()
         self.table_exclusive_access: bool = False
-        self.table_shared_access: bool = False
+        self.table_shared_access_counter: int = 0
 
     def request_table_lock(self, is_exclusive: bool) -> bool:
         """
@@ -25,12 +22,14 @@ class LockManager:
         lock_acquired = False
         # this is now the only thread looking at the lock manager
         if is_exclusive:
-            if not (self.table_shared_access or self.table_exclusive_access):
+            if not (self.table_shared_access_counter or self.table_exclusive_access):
                 self.table_exclusive_access = True
                 lock_acquired = True
+                print("Xlock acquired")
         elif not self.table_exclusive_access:
-            self.table_shared_access += 1
+            self.table_shared_access_counter += 1
             lock_acquired = True
+            print(f"Slock acquired ({self.table_shared_access_counter} threads reading)")
         self.lock_manager_lock.release()
         return lock_acquired
 
@@ -43,12 +42,12 @@ class LockManager:
         # this is now the only thread looking at the lock manager
         if is_exclusive:
             self.table_exclusive_access = False
+            print(f"Xlock released")
         else:
             self.table_shared_access -= 1
             assert self.table_exclusive_access >= 0
+            print(f"Slock released ({self.table_shared_access_counter} threads reading)")
         self.lock_manager_lock.release()
-
-
 
 
 """
