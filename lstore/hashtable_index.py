@@ -1,5 +1,6 @@
 from typing import List, Tuple, Union, NewType
-from config import DATABASE_DIR
+from lstore.config import DATABASE_DIR
+from lstore.config import debug_print as print
 from pathlib import Path
 import json
 
