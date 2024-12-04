@@ -52,7 +52,7 @@ class Database():
         # save database to disk
         for table in self.tables.values():
             table.page_directory.save_all()
-            table.index.save_index_to_disk(Path(DATABASE_DIR, table.name))
+            table.index.save_index_to_disk(Path(DATABASE_DIR, self.database_path, table.name))
 
     """
     # Creates a new table
