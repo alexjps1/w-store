@@ -8,7 +8,7 @@ class Transaction:
     # Creates a transaction object.
     """
     def __init__(self):
-        self.lock_requirement = "read_lock"
+        self.is_exclusive = False
         self.queries = []
         pass
 
@@ -21,8 +21,8 @@ class Transaction:
     """
     def add_query(self, query, table, *args):
         self.queries.append((query, args))
-        if query.__name__ == "update" or query.__name__ == "delete" or query.__name__ == "insert" or query.__name__ == "increment":
-            self.lock_requirement = "write_lock"
+        if query.__name__ == "update" or query.__name__ == "delete" or query.__name__ == "insert":
+            self.is_exclusive = True
         self.results = []
         # use grades_table for aborting
 
