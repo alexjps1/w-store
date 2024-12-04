@@ -1,5 +1,7 @@
 from threading import Lock
 from lstore.config import debug_print as print
+from typing import List
+from lstore.transaction import Transaction
 
 INDEX = 0
 PAGE_DIR = 1
@@ -9,18 +11,50 @@ class LockManager:
     def __init__(self):
         """Contains mapping for records to locks, as well as locks
         for important data structures shared by each worker thread"""
-        self.exclusive_record_locks = {}
-        self.shared_record_locks = {}
-        #Shared locks are acquired by the main thread, to prevent access
-        self.index_lock = Lock()
-        self.page_dir_lock = Lock()
-        self.lock_manager_lock = Lock()     #May be unecessary
+        self.lock_manger_lock = Lock()
+        self.table_exclusive_access: bool = False
+        self.table_shared_access: bool = False
 
+    def request_table_lock(self, is_exclusive: bool) -> bool:
+        """
+        Attempt to acquire a lock on the table.
+        Returns True if lock granted and False if not.
+        """
+        # wait to access the lock manager
+        self.lock_manager_lock.acquire(blocking=True)
+        lock_acquired = False
+        # this is now the only thread looking at the lock manager
+        if is_exclusive:
+            if not (self.table_shared_access or self.table_exclusive_access):
+                self.table_exclusive_access = True
+                lock_acquired = True
+        elif not self.table_exclusive_access:
+            self.table_shared_access += 1
+            lock_acquired = True
+        self.lock_manager_lock.release()
+        return lock_acquired
+
+    def release_table_lock(self, is_exclusive: bool) -> None:
+        """
+        Release the table lock.
+        """
+        # wait to access the lock manager
+        self.lock_manager_lock.acquire(blocking=True)
+        # this is now the only thread looking at the lock manager
+        if is_exclusive:
+            self.table_exclusive_access = False
+        else:
+            self.table_shared_access -= 1
+            assert self.table_exclusive_access >= 0
+        self.lock_manager_lock.release()
+
+
+
+
+"""
     def get_record_lock(self, RID:int, is_exclusive:bool) -> bool:
-        """
-        Acquires lock assoicated with RID
-        Output: Returns True if lock was acquired, False if not
-        """
+        # Acquires lock assoicated with RID
+        # Output: Returns True if lock was acquired, False if not
         if is_exclusive:
             #If shared lock being used, fail and return false
             if RID in self.shared_record_locks:
@@ -40,7 +74,7 @@ class LockManager:
             return not self.shared_record_locks[RID].locked()       #Return True if shared lock not blocked
     
     def release_record_lock(self, RID:int, is_exclusive:bool):
-        """Delete Record Lock if in mapping"""
+        # Delete Record Lock if in mapping
         if is_exclusive:
             if RID in self.exclusive_record_locks:
                 del self.exclusive_record_locks[RID]
@@ -49,7 +83,7 @@ class LockManager:
                 del self.shared_record_locks[RID]
     
     def is_acquired(self, data_struct_id:int) -> bool:
-        """Returns whether the shared lock is acquired"""
+        # Returns whether the shared lock is acquired
         if data_struct_id==INDEX:
             return self.index_lock.locked()
         elif data_struct_id==PAGE_DIR:
@@ -60,7 +94,7 @@ class LockManager:
             raise Exception("Invalid Data Structure ID given for check!")
     
     def acquire_shared_lock(self, data_struct_id:int):
-        """Acquires shared lock and returns True on success, else returns False"""
+        # Acquires shared lock and returns True on success, else returns False
         if data_struct_id==INDEX:
             return self.index_lock.acquire(blocking=False)
         elif data_struct_id==PAGE_DIR:
@@ -71,7 +105,7 @@ class LockManager:
             raise Exception("Invalid Data Structure ID given for acquisition!")
 
     def release_shared_lock(self, data_struct_id:int):
-        """Releases shared lock"""
+        # Releases shared lock
         if data_struct_id==INDEX:
             self.index_lock.release()
         elif data_struct_id==PAGE_DIR:
@@ -103,3 +137,4 @@ if __name__=="__main__":
     print(lock_manager.acquire_shared_lock(LOCK_MANAGER))
     lock_manager.release_shared_lock(LOCK_MANAGER)
     print("Is acquired?", lock_manager.is_acquired(LOCK_MANAGER))
+"""
