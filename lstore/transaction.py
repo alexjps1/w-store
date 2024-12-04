@@ -21,7 +21,7 @@ class Transaction:
     """
     def add_query(self, query, table, *args):
         self.queries.append((query, args))
-        if query.__name__ == "update" or query.__name__ == "delete" or query.__name__ == "insert":
+        if query.__name__ == "update" or query.__name__ == "delete" or query.__name__ == "insert" or query.__name__ == "increment":
             self.lock_requirement = "write_lock"
         self.results = []
         # use grades_table for aborting
