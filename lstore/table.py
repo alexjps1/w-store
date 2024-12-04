@@ -86,6 +86,7 @@ class Table:
             self.index = New_Index(self, use_bplus=self.use_bplus, use_hash=self.use_hash, degree=self.bplus_degree)
         else:
             self.index = DumbIndex(self)
+        self.dumb_index = DumbIndex(self)
 
         # attributes for merge algorithm
         self.merge_set: set = set()

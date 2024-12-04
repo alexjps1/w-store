@@ -163,6 +163,26 @@ class New_Index:
         else:
             # create dict index
             self.indices[column_num] = {}
+    
+    def load_index_from_disk(self, path:str):
+        """Path is the file path up to the table name"""
+        if self.hash_index:
+            col_num = 1
+            for index in self.indices:
+                index.load_index(path, col_num)
+                col_num += 1
+        else:
+            raise NotImplementedError("This function is called only for hastable indices")
+    
+    def save_index_to_disk(self, path:str):
+        """Path is the file path up to the table name"""
+        if self.hash_index:
+            col_num = 1
+            for index in self.indices:
+                index.save_index(path, col_num)
+                col_num += 1
+        else:
+            raise NotImplementedError("This function is called only for hashtable indices")
 
     def drop_index(self, column_num: int) -> None:
         """
