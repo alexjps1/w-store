@@ -12,7 +12,7 @@ class HashtableIndex:
         self.rid_val_map:dict[RID, int] = {}
         
     def __str__(self):
-        print(self.hashtable.items())
+        print(str(self.hashtable.items()))
         
     # public methods
 

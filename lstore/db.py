@@ -53,7 +53,7 @@ class Database():
         # save database to disk
         for table in self.tables.values():
             table.page_directory.save_all()
-            table.index.save_index_to_disk(Path(DATABASE_DIR, self.database_path, table.name))
+            table.index.save_index_to_disk(str(Path(DATABASE_DIR, self.database_path, table.name)))
 
     """
     # Creates a new table
@@ -140,7 +140,7 @@ class Database():
             # regenerate the index
             # if not OVERRIDE_WITH_DUMB_INDEX: self.generate_index_on_loaded_table(path, table)
             # load the index from disk
-            table.index.load_index_from_disk(path)
+            table.index.load_index_from_disk(str(path))
             # update table dictionary
             self.tables[name] = table
             # return the table

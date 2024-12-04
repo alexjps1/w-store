@@ -4,6 +4,7 @@ from lstore.config import int_to_bytearray, bytearray_to_int
 from lstore.config import debug_print as print
 from pathlib import Path
 from time import time_ns
+from shutil import rmtree
 """
 Abstraction of the Page Directory and contained Bufferpool
 """
@@ -230,12 +231,7 @@ class FileManager:
         dir_name = Path(DATABASE_DIR, f"{self.database_name}", f"{self.table_name}")
         #If the table exists, delete all of files within it
         if dir_name.exists():
-            for file in dir_name.iterdir():
-                #Remove file if it is a file
-                if file.is_file():
-                    file.unlink()
-            #Delete the table
-            dir_name.rmdir()
+            rmtree(dir_name)
 
 if __name__ == "__main__":
     """
