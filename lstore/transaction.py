@@ -1,7 +1,7 @@
 from lstore.table import Table, Record
 from lstore.index import Index
 from lstore.config import debug_print as print
-
+from lstore.lock_manager import request_table_lock, release_table_lock
 class Transaction:
 
     """
@@ -29,6 +29,9 @@ class Transaction:
 
     # If you choose to implement this differently this method must still return True if transaction commits or False on abort
     def run(self):
+        if request_table_lock(self.is_exclusive):
+            return self.abort()
+
         for query, args in self.queries:
             result = query(*args)
             self.results.append(result)
@@ -43,10 +46,11 @@ class Transaction:
 
         # Due to the granularity of locking needing to take place on the Table level,
         # transactions should not make any write queries unless the whole table has been aquired
-
+        release_table_lock(self.is_exclusive)
         return False
 
 
     def commit(self):
         # TODO: commit to database
+        release_table_lock(self.is_exclusive)
         return True
