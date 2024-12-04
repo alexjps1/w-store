@@ -118,11 +118,11 @@ class New_Index:
         """
         if self.tree_index:
             assert isinstance(self.indices[col_num], BPlusTree)
-            self.indices[col_num].update(new_val, curr_val, rid)
+            self.indices[col_num].update(new_val, rid)
             return
         elif self.hash_index:
             assert isinstance(self.indices[col_num], HashtableIndex)
-            self.indices[col_num].update(new_val, curr_val, rid)
+            self.indices[col_num].update(new_val, rid)
             return
         raise NotImplementedError("Tried to update dict index, not compatible with versioning at this time.")
 
