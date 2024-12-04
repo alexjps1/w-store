@@ -90,6 +90,8 @@ def gen_filler_tests(num_records:int) -> list[Test]:
 def create_tests(is_loaded=False, filler_tests=False) -> list[Test]:
     """
     The evaluation layer initializes the query test sweat with the queries and their expected results.
+    This function produces the set of tests to assess correctness of the project.
+    All insert query test should be at the start of the test set.
     - insert on:
         * valid/invalid columns
         * null/non-null values
@@ -432,10 +434,10 @@ class DatabaseLayer:
                     transaction_workers[i].join()
             except Exception as e:
                 if LOG_LEVEL > 7: print(f"FAILED during {sub_layer_name} Other Transactions Worker Join :: Exception=={e}")
-        # squential transaction test
+        # sequential transaction test
         else:
-            # run transactions squentially (won't work for small numbers of transactions)
-            assert len(testcase_set) < NUM_TRANSACTIONS # actual numbers are a little different since inserts are done seperatly
+            # run transactions sequentially (won't work for small numbers of transactions)
+            assert len(testcase_set) < NUM_TRANSACTIONS # actual numbers are a little different since inserts are done separately
             try:
                 for t in insert_transactions:
                     t.run()
