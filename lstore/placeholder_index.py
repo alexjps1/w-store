@@ -96,3 +96,9 @@ class DumbIndex:
 
     def update_record_in_index(self, *args) -> None:
         pass
+
+    def load_index_from_disk(self, *args) -> None:
+        pass
+
+    def save_index_to_disk(self, *args) -> None:
+        pass

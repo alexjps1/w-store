@@ -1,4 +1,5 @@
 from threading import Lock
+from lstore.config import debug_print as print
 
 INDEX = 0
 PAGE_DIR = 1

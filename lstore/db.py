@@ -4,6 +4,7 @@ from lstore.config import DATABASE_DIR, NUM_METADATA_COLUMNS, FIXED_PARTIAL_RECO
     OVERRIDE_WITH_DUMB_INDEX
 from lstore.config import bytearray_to_int
 from lstore.config import debug_print as print
+from shutil import rmtree
 from typing import Literal
 
 
@@ -101,21 +102,16 @@ class Database():
         Inputs: name, the name of the table to drop
         Outputs: None
         """
+        dir_name = Path(DATABASE_DIR, self.database_path, name)
         if name in self.tables.keys():
             # remove table from disk
-            self.tables[name].page_directory.file_manager.delete_files()
+            rmtree(dir_name)
             # remove table from database
             del self.tables[name]
         else:
             # table not loaded, but files may be present
-            dir_name = Path(DATABASE_DIR, self.database_path, name)
             if dir_name.exists():
-                for file in dir_name.iterdir():
-                    # Remove file if it is a file
-                    if file.is_file():
-                        file.unlink()
-                # Delete the table
-                dir_name.rmdir()
+                rmtree(dir_name)
 
     """
     # Returns table with the passed name

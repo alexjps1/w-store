@@ -1,6 +1,7 @@
 from lstore.table import Table, Record
 from lstore.config import debug_print as print
 from typing import Literal
+import traceback
 
 
 class Query:
@@ -28,7 +29,7 @@ class Query:
             value = self.table.delete_record(rid)
             return value
         except Exception as e:
-            print(f"Exception in delete :: {e}")
+            print(f"Exception in delete :: {e} {traceback.format_exc()}")
             return False
 
     """
@@ -67,7 +68,7 @@ class Query:
                 # don't add existing primary keys
                 return False
         except Exception as e:
-            print(f"Exception in insert :: {e}")
+            print(f"Exception in insert :: {e} {traceback.format_exc()}")
             return False
 
 
@@ -107,7 +108,7 @@ class Query:
             records = [self.table.locate_record(rid, search_key, projected_columns_index, relative_version) for rid in rids]
             return records
         except Exception as e:
-            print(f"Exception in select_version :: {e}")
+            print(f"Exception in select_version :: {e} {traceback.format_exc()}")
             return []
 
     """
@@ -155,7 +156,7 @@ class Query:
             else:
                 return False
         except Exception as e:
-            print(f"Exception in update :: {e}")
+            print(f"Exception in update :: {e} {traceback.format_exc()}")
             return False
 
 
@@ -208,7 +209,7 @@ class Query:
             else:
                 return 0
         except Exception as e:
-            print(f"Exception in sum_version :: {e}")
+            print(f"Exception in sum_version :: {e} {traceback.format_exc()}")
             return 0
 
 
