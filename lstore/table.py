@@ -8,7 +8,8 @@ from typing import List, Literal, Tuple
 from pathlib import Path
 from lstore.config import *
 from lstore.config import debug_print as print
-import copy
+import copya
+from lstore.lock_manager import LockManager
 
 # graphing
 # from lstore.config import FIXED_PARTIAL_RECORD_SIZE, PAGE_SIZE, INDEX_USE_BPLUS_TREE, OVERRIDE_WITH_DUMB_INDEX, INDEX_BPLUS_TREE_MAX_DEGREE
@@ -91,6 +92,9 @@ class Table:
         # attributes for merge algorithm
         self.merge_set: set = set()
         self.update_counter: int = 0
+
+        # initialize lock manager for Table
+        self.lock_manager = LockManager()
 
     def insert_record_into_pages(self, columns:list[int]) -> bool:
         """
