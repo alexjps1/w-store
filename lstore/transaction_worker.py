@@ -14,27 +14,29 @@ class TransactionWorker:
         self.result = 0
         self.t = Thread(target=self.__run)
 
-    
+
     """
     Appends t to transactions
     """
     def add_transaction(self, t):
         self.transactions.append(t)
 
-        
+
     """
     Runs all transaction as a thread
     """
     def run(self):
         # create a thread and call __run
         self.t.run()
-    
+
 
     """
     Waits for the worker to finish
     """
     def join(self):
-        self.t.join()
+        if self.t.is_alive():
+            self.t.join()
+
 
 
     def __run(self):
@@ -43,4 +45,3 @@ class TransactionWorker:
             self.stats.append(transaction.run())
         # stores the number of transactions that committed
         self.result = len(list(filter(lambda x: x, self.stats)))
-
