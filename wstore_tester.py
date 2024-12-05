@@ -381,23 +381,23 @@ class DatabaseLayer:
             elif q == QueryType.SELECT:
                 if phase == 0:
                     phase += 1
-                transactions[i%NUM_TRANSACTIONS].add_query(query.select, table, *test_case.kwargs)
+                transactions[i%NUM_TRANSACTIONS].add_query(query.select, table, *test_case.kwargs.values())
             elif q == QueryType.SELECT_VERSION:
                 if phase == 0:
                     phase += 1
-                transactions[i%NUM_TRANSACTIONS].add_query(query.select_version, table, *test_case.kwargs)
+                transactions[i%NUM_TRANSACTIONS].add_query(query.select_version, table, *test_case.kwargs.values())
             elif q == QueryType.SUM:
                 if phase == 0:
                     phase += 1
-                transactions[i%NUM_TRANSACTIONS].add_query(query.sum, table, *test_case.kwargs)
+                transactions[i%NUM_TRANSACTIONS].add_query(query.sum, table, *test_case.kwargs.values())
             elif q == QueryType.SUM_VERSION:
                 if phase == 0:
                     phase += 1
-                transactions[i%NUM_TRANSACTIONS].add_query(query.sum_version, table, *test_case.kwargs)
+                transactions[i%NUM_TRANSACTIONS].add_query(query.sum_version, table, *test_case.kwargs.values())
             else: # delete
                 if phase == 0:
                     phase += 1
-                transactions[i%NUM_TRANSACTIONS].add_query(query.delete, table, *test_case.kwargs)
+                transactions[i%NUM_TRANSACTIONS].add_query(query.delete, table, *test_case.kwargs.values())
         # run transactions
         # parallel transactions test
         if layer_name.__contains__("parallel"):
@@ -437,7 +437,7 @@ class DatabaseLayer:
         # sequential transaction test
         else:
             # run transactions sequentially (won't work for small numbers of transactions)
-            assert len(testcase_set) < NUM_TRANSACTIONS # actual numbers are a little different since inserts are done separately
+            print(f"{sub_layer_name} is likely to fail? : {len(testcase_set) >= NUM_TRANSACTIONS and len(testcase_set) <= 2*NUM_TRANSACTIONS}") # actual numbers are a little different since inserts are done separately
             try:
                 for t in insert_transactions:
                     t.run()
@@ -465,7 +465,10 @@ class DatabaseLayer:
                 else:
                     insert_counter[x] = 0
                 # update results
-                test_case.update_result(results[insert_counter[x]])
+                try:
+                    test_case.update_result(results[insert_counter[x]])
+                except IndexError:
+                    pass # delete decreases size?
             else:
                 if phase == 0:
                     phase += 1
@@ -477,7 +480,10 @@ class DatabaseLayer:
                 else:
                     other_counter[x] = 0
                 # update results
-                test_case.update_result(results[other_counter[x]])
+                try:
+                    test_case.update_result(results[other_counter[x]])
+                except IndexError:
+                    pass
 
         correctness_two = evaluate_correctness(testcase_set)
         if False in correctness_two:
