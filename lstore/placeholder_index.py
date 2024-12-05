@@ -1,4 +1,4 @@
-from lstore.config import RID_COLUMN, NUM_METADATA_COLUMNS, INDIRECTION_COLUMN
+from lstore.config import RID_COLUMN, NUM_METADATA_COLUMNS, INDIRECTION_COLUMN, RID_TOMBSTONE_VALUE
 from lstore.config import bytearray_to_int
 from lstore.config import debug_print as print
 
@@ -32,10 +32,10 @@ class DumbIndex:
                         # add rid of the base record to locate list
                         rids.append(self.get_rid(n, i))
         return rids
-            
+
     def locate_version(self, col_num:int, value:int, rel_ver:int):
         """
-        Return RIDs of records with the given value at the specified column and relative version.
+        Return base RIDs of records with the given value at the specified column and relative version.
         If the relative version goes back further than the number of tail records, go off the base record's value.
         """
         assert rel_ver <= 0
@@ -47,7 +47,11 @@ class DumbIndex:
             for offset in range(page.num_records):
                 cur_base_rid = self.get_rid(page_num, offset)
                 # start at the latest tail record (newest version)
-                cur_rid = self.table.get_partial_record(cur_base_rid, INDIRECTION_COLUMN)
+                indir_col = self.table.get_partial_record(cur_base_rid, INDIRECTION_COLUMN)
+                # skip this record if tombstoned
+                if indir_col == RID_TOMBSTONE_VALUE:
+                    continue
+                cur_rid = indir_col
                 while cur_rid != cur_base_rid and rel_ver > 0:
                     # make backwards hops to reach desired relative version
                     cur_rid = self.table.get_partial_record(cur_rid, INDIRECTION_COLUMN)

@@ -12,7 +12,8 @@ class HashtableIndex:
         self.rid_val_map:dict[RID, int] = {}
         
     def __str__(self):
-        print(str(self.hashtable.items()))
+        # print(str(self.hashtable.items()))
+        pass
         
     # public methods
 
@@ -176,10 +177,11 @@ class HashtableIndex:
     """
 
 
+"""
 if __name__=="__main__":
     index = HashtableIndex()
 
-    print("""___TESTING_PQs___""")
+    print("___TESTING_PQs___")
     for i in range(100):
         index.insert(i%10, i)
     print(index.point_query(0))
@@ -188,7 +190,7 @@ if __name__=="__main__":
     print(index.rid_val_map)
 
 
-    print("""___TESTING_UPDATE___""")
+    print("___TESTING_UPDATE___")
     #Simple updates
     index.update(5, 0)              #rid0->5
     index.update(5, 1)             #rid1->5
@@ -233,3 +235,5 @@ if __name__=="__main__":
     print(index2.hashtable)
     print(index2.rid_val_map)
     print(index.hashtable==index2.hashtable)
+
+"""

@@ -76,7 +76,7 @@ class Database():
         path = Path(DATABASE_DIR, f"{self.database_path}", f"{name}")
         if path.exists():
             # existing table, clear data
-            print(f"clearing existing table {name}")
+            # print(f"clearing existing table {name}")
             self.drop_table(name)
         # dir is either not there, or we just deleted it
         # print(f"making new table {name}")
@@ -126,7 +126,7 @@ class Database():
         """
         # if table is already loaded, return it
         if name in self.tables.keys():
-            print(f"table {name} already loaded")
+            # print(f"table {name} already loaded")
             return self.tables[name]
         # load table from disk
         path = Path(DATABASE_DIR, f"{self.database_path}", f"{name}")

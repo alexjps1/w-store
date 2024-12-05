@@ -45,7 +45,7 @@ def rid_to_coords(rid: int) -> tuple[bool, int, int]:
 """
 Constants
 """
-DEBUG = True # True == print debug messages; False == no extra print messages, good for submissions
+DEBUG = False # True == print debug messages; False == no extra print messages, good for submissions
 # PAGE_SIZE is the byte capacity for each page
 PAGE_SIZE:int = 4096
 # FIXED_PAGE_DATA_SIZE is the length in bytes of the data stored in each page (1 entry, for 1 column)

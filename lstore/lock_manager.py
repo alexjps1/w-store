@@ -26,11 +26,11 @@ class LockManager:
             if not (self.table_shared_access_counter or self.table_exclusive_access):
                 self.table_exclusive_access = True
                 lock_acquired = True
-                print("Xlock acquired")
+                # print("Xlock acquired")
         elif not self.table_exclusive_access:
             self.table_shared_access_counter += 1
             lock_acquired = True
-            print(f"Slock acquired ({self.table_shared_access_counter} threads reading)")
+            # print(f"Slock acquired ({self.table_shared_access_counter} threads reading)")
         self.lock_manager_lock.release()
         return lock_acquired
 
@@ -43,11 +43,11 @@ class LockManager:
         # this is now the only thread looking at the lock manager
         if is_exclusive:
             self.table_exclusive_access = False
-            print(f"Xlock released")
+            # print(f"Xlock released")
         else:
             self.table_shared_access_counter -= 1
             assert self.table_exclusive_access >= 0
-            print(f"Slock released ({self.table_shared_access_counter} threads reading)")
+            # print(f"Slock released ({self.table_shared_access_counter} threads reading)")
         self.lock_manager_lock.release()
 
 
@@ -72,7 +72,7 @@ class LockManager:
             if RID not in self.shared_record_locks:
                 self.shared_record_locks[RID] = Lock()
             return not self.shared_record_locks[RID].locked()       #Return True if shared lock not blocked
-    
+
     def release_record_lock(self, RID:int, is_exclusive:bool):
         # Delete Record Lock if in mapping
         if is_exclusive:
@@ -81,7 +81,7 @@ class LockManager:
         else:
             if RID in self.shared_record_locks:
                 del self.shared_record_locks[RID]
-    
+
     def is_acquired(self, data_struct_id:int) -> bool:
         # Returns whether the shared lock is acquired
         if data_struct_id==INDEX:
@@ -92,7 +92,7 @@ class LockManager:
             return self.lock_manager_lock.locked()
         else:
             raise Exception("Invalid Data Structure ID given for check!")
-    
+
     def acquire_shared_lock(self, data_struct_id:int):
         # Acquires shared lock and returns True on success, else returns False
         if data_struct_id==INDEX:
@@ -114,7 +114,7 @@ class LockManager:
             self.lock_manager_lock.release()
         else:
             raise Exception("Invalid Data Structure ID given for release!")
-    
+
 if __name__=="__main__":
     rid1 = 1
     rid2 = 2
@@ -125,7 +125,7 @@ if __name__=="__main__":
     print(lock_manager.get_record_lock(rid1))
     lock_manager.release_record_lock(rid1)
     print(lock_manager.get_record_lock(rid1))
-    
+
     print("Is acquired?", lock_manager.is_acquired(INDEX))
     print(lock_manager.acquire_shared_lock(INDEX))
     lock_manager.release_shared_lock(INDEX)

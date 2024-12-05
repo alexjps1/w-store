@@ -255,13 +255,14 @@ if __name__ == "__main__":
     # compare data, with loaded data
     if new_pagewrapper is not None:
         num_records_load = new_pagewrapper.get_page().num_records
-        print("Assert num_records (save){} == num_records (load){} :: {}".format(num_records, num_records_load, num_records == num_records_load))
+        # print("Assert num_records (save){} == num_records (load){} :: {}".format(num_records, num_records_load, num_records == num_records_load))
         test_data = True
         load_data = [0]*l
         for i, x in enumerate(data):
             load_data[i] = bytearray_to_int(new_pagewrapper.get_page().retrieve_direct(i))
             if load_data[i] != x:
                 test_data = False
-        print(f"Assert save_data == load_data :: {test_data}\nsave_data :: {data}\nload_data :: {load_data}")
+        # print(f"Assert save_data == load_data :: {test_data}\nsave_data :: {data}\nload_data :: {load_data}")
     else:
-        print("Failed to load file column 0, base, page 0")
+        pass
+        # print("Failed to load file column 0, base, page 0")

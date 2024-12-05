@@ -143,7 +143,7 @@ class New_Index:
             return
         if self.hash_index:
             if self.indices[col_num].delete(val, rid) is False:
-                print(f"Delete failed at column number: {col_num}")
+                # print(f"Delete failed at column number: {col_num}")
                 raise ValueError("The key to delete is not in the index.")
             return
         raise NotImplementedError("Tried to delete from dict index, not compatible with versioning at this time.")
