@@ -158,7 +158,7 @@ class New_Index:
         Warning: Run only on an empty table. Otherwise, the index will be incomplete.
         """
         if self.indices[column_num] is not None:
-            raise ValueError("Tried to create an empty index of an already-indexed column.")
+            return None
         if self.tree_index:
             # create BPlusTree index
             self.indices[column_num] = BPlusTree(max_degree=self.degree)
@@ -167,7 +167,7 @@ class New_Index:
         else:
             # create dict index
             self.indices[column_num] = {}
-    
+
     def load_index_from_disk(self, path:str):
         """Path is the file path up to the table name"""
         if self.hash_index:
@@ -177,7 +177,7 @@ class New_Index:
                 col_num += 1
         else:
             raise NotImplementedError("This function is called only for hastable indices")
-    
+
     def save_index_to_disk(self, path:str):
         """Path is the file path up to the table name"""
         if self.hash_index:
