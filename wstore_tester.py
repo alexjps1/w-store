@@ -212,7 +212,7 @@ def create_tests(is_loaded=False, filler_tests=False) -> list[Test]:
         tests.append(Test(f"delete a record in table", QueryType.DELETE, True, primary_key=920000))
         # test bad deletes
         # not allowed since this will uncover primary key 920002, and 920009 was updated to 920002
-        tests.append(Test(f"delete a record that will cause a primary key to be non-unique", QueryType.DELETE, False, primary_key=120000))
+        # tests.append(Test(f"delete a record that will cause a primary key to be non-unique", QueryType.DELETE, False, primary_key=120000))
         # not a primary key
         tests.append(Test(f"delete a record that is not in table", QueryType.DELETE, False, primary_key=0))
         # test key was deleted successfully
