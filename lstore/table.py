@@ -176,7 +176,7 @@ class Table:
         assert base_page is not None
         base_page.overwrite_direct(int_to_bytearray(new_tail_rid, self.record_size), offset)
         for i in range(len(columns)):
-            self.get_partial_record(new_tail_rid, i + NUM_METADATA_COLUMNS)
+            self.index.indices[i].update(self.get_partial_record(new_tail_rid, i + NUM_METADATA_COLUMNS), base_RID)
         return success_state
 
     def write_new_record(self, RID:int, indirection:int, schema:list[int], columns:list[int], rid_page:Page, is_tail:bool, base_rid:int=0) -> bool:
@@ -482,7 +482,8 @@ class Table:
         Helper function for removing an entire record from the index
         """
         for i in range(self.num_columns):
-            value = self.get_partial_record(base_RID, i + NUM_METADATA_COLUMNS)
+            #value = self.get_partial_record(base_RID, i + NUM_METADATA_COLUMNS)
+            value = self.index.indices[i].rid_val_map[base_RID]
             self.index.remove_record_from_index(i, value, base_RID)
 
     ### Methods for merging ###

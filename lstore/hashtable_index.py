@@ -115,6 +115,8 @@ class HashtableIndex:
             json.dump(self.rid_val_map, file_name)
             file_name.close()
 
+    def keystoint(self, x):
+        return {int(k): v for k, v in x.items()}
 
     def load_index(self, path:str, col_num:int) -> None:
         """Path goes up to table_name"""
@@ -123,13 +125,13 @@ class HashtableIndex:
         reverse_path = Path(index_path, "hashmap_reverse.json")
         if hash_path.exists():
             with open(hash_path, "r") as file_name:
-                self.hashtable = json.load(file_name)
+                self.hashtable = json.load(file_name, object_hook=self.keystoint)
                 file_name.close()
         else:
             raise FileNotFoundError(f"Error: Hashmap for column {col_num} not on disk")
         if reverse_path.exists():
             with open(reverse_path, "r") as file_name:
-                self.rid_val_map = json.load(file_name)
+                self.rid_val_map = json.load(file_name, object_hook=self.keystoint)
                 file_name.close()
         else:
             raise FileNotFoundError(f"Error: Reverse Hashmap for column {col_num} not on disk")
